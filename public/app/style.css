@@ -680,3 +680,8 @@ i.k2 { background: color-mix(in oklab, var(--fg) 25%, transparent); }
   :root .side a.it.on, :root:not([data-theme="dark"]) .side a.it.on { background: var(--accent); color: var(--on-accent); }
   :root:not([data-theme="dark"]) .theme-pill button.on { background: var(--accent); color: var(--on-accent); }
 }
+/* barra inferior clara no modo claro */
+:root:not([data-theme="dark"]):not([data-bg="photo"]) .nav { background: color-mix(in oklab, var(--surface) 94%, transparent); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(20, 30, 35, 0.08); }
+:root:not([data-theme="dark"]):not([data-bg="photo"]) .nav a { color: var(--muted); }
+:root:not([data-theme="dark"]):not([data-bg="photo"]) .nav a.on { color: var(--fg); }
+:root:not([data-theme="dark"]):not([data-bg="photo"]) .top .pill { background: color-mix(in oklab, var(--surface) 94%, transparent); color: var(--fg); }

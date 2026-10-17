@@ -32,7 +32,7 @@
     r.style.setProperty("--on-accent", onAccent(prefs.accent));
     r.style.setProperty("--photo", photo ? 'url("' + photo + '")' : "none");
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", dark ? "#1d2427" : prefs.bg === "plain" ? "#eeeeec" : "#8e9fa6");
+    if (meta) meta.setAttribute("content", dark ? "#1d2427" : prefs.bg === "plain" ? "#eeeeec" : "#c9d3d7");
   }
   function save(patch) {
     Object.assign(prefs, patch || {});
