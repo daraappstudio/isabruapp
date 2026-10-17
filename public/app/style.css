@@ -662,3 +662,10 @@ i.k2 { background: color-mix(in oklab, var(--fg) 25%, transparent); }
   :root:not([data-theme="dark"]) .theme-pill button { color: var(--muted); }
   :root:not([data-theme="dark"]) .theme-pill button.on { background: var(--ink); color: var(--on-ink); }
 }
+/* faixas que rolam pro lado: sem barra, com esmaecer nas bordas */
+.days, .chips, .tabs-top, .presets { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; scroll-behavior: smooth; }
+.days > *, .chips > *, .tabs-top > *, .presets > * { flex-shrink: 0; }
+.hs-l { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 28px); mask-image: linear-gradient(90deg, transparent 0, #000 28px); }
+.hs-r { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+.hs-l.hs-r { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 calc(100% - 28px), transparent); }
+@media (hover: hover) { .hs-on { cursor: grab; } .hs-drag { cursor: grabbing; scroll-behavior: auto; user-select: none; } .hs-drag * { pointer-events: none; } }

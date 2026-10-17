@@ -2111,3 +2111,41 @@ if ("serviceWorker" in navigator && location.protocol === "https:") {
 
 /* atalho do ícone (segurar o ícone no Android/PC) */
 routes["novo-gasto"] = async () => { setTimeout(() => { history.replaceState(null, "", "#/"); forms.transaction(); }, 0); return routes.home(); };
+
+// arrastar pro lado (mouse), roda do mouse vira horizontal, esmaecer nas bordas
+(() => {
+  const SEL = ".days, .chips, .tabs-top, .presets";
+  const fade = (el) => {
+    const max = el.scrollWidth - el.clientWidth;
+    el.classList.toggle("hs-on", max > 2);
+    el.classList.toggle("hs-l", el.scrollLeft > 2);
+    el.classList.toggle("hs-r", el.scrollLeft < max - 2);
+  };
+  let raf = 0;
+  const all = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => document.querySelectorAll(SEL).forEach(fade)); };
+  new MutationObserver(all).observe(document.body, { childList: true, subtree: true });
+  addEventListener("resize", all);
+  document.addEventListener("scroll", (e) => { if (e.target.matches && e.target.matches(SEL)) fade(e.target); }, true);
+  let drag = null, moved = false;
+  document.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    const el = e.target.closest(SEL); if (!el || el.scrollWidth <= el.clientWidth) return;
+    drag = { el, x: e.clientX, s: el.scrollLeft }; moved = false;
+  });
+  document.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x;
+    if (!moved && Math.abs(dx) > 5) { moved = true; drag.el.classList.add("hs-drag"); }
+    if (moved) drag.el.scrollLeft = drag.s - dx;
+  });
+  const end = () => { if (drag) drag.el.classList.remove("hs-drag"); drag = null; };
+  document.addEventListener("pointerup", end); document.addEventListener("pointercancel", end);
+  document.addEventListener("click", (e) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+  document.addEventListener("wheel", (e) => {
+    const el = e.target.closest && e.target.closest(SEL);
+    if (!el || el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    const max = el.scrollWidth - el.clientWidth;
+    if ((e.deltaY < 0 && el.scrollLeft <= 0) || (e.deltaY > 0 && el.scrollLeft >= max)) return;
+    e.preventDefault(); el.scrollBy({ left: e.deltaY, behavior: "auto" });
+  }, { passive: false });
+})();
