@@ -652,3 +652,13 @@ i.k2 { background: color-mix(in oklab, var(--fg) 25%, transparent); }
 }
 @media (min-width: 1700px) { .an-main { grid-column: span 2; } .an-main .an-donut-wrap { grid-template-columns: 300px minmax(0, 1fr); } }
 :root[data-theme="dark"] .chip.on, :root[data-theme="dark"] .tabs-top button.on { background: var(--fg); color: #111312; }
+/* menu lateral claro no modo claro */
+@media (min-width: 980px) {
+  :root:not([data-theme="dark"]) .side { background: color-mix(in oklab, var(--surface) 78%, transparent); border: 1px solid var(--line); }
+  :root:not([data-theme="dark"]) .side a.it:hover { background: var(--surface-2); }
+  :root:not([data-theme="dark"]) .side a.it.on { background: var(--ink); color: var(--on-ink); }
+  :root:not([data-theme="dark"]) .side .grp, :root:not([data-theme="dark"]) .side .foot .who small { color: var(--muted); }
+  :root:not([data-theme="dark"]) .theme-pill { background: var(--surface-2); }
+  :root:not([data-theme="dark"]) .theme-pill button { color: var(--muted); }
+  :root:not([data-theme="dark"]) .theme-pill button.on { background: var(--ink); color: var(--on-ink); }
+}
