@@ -1,0 +1,9 @@
+{
+  // Site estático: a Cloudflare publica a pasta public/ como está (sem build).
+  "name": "isabruapp",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "none"
+  }
+}
