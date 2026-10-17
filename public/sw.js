@@ -1,4 +1,4 @@
-const CACHE = "bunny-v13";
+const CACHE = "bunny-v14";
 const SHELL = [
   "/", "/index.html", "/prefs.js", "/manifest.json",
   "/app/", "/app/index.html", "/app/style.css", "/app/app.js", "/app/config.js",

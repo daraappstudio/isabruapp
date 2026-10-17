@@ -673,3 +673,10 @@ i.k2 { background: color-mix(in oklab, var(--fg) 25%, transparent); }
   .lcol .days { flex-wrap: nowrap; overflow-x: auto; margin: 0 0 12px; padding: 0; }
   .lcol .day, .lcol .day.on { width: calc((100% - 16px) / 3); flex: 0 0 calc((100% - 16px) / 3); height: 64px; }
 }
+/* cor principal nas ações e no item ativo */
+:root .btn:not(.ghost):not(.danger), :root .round.ink, :root .quick-add .round, :root .nav .fab, :root[data-theme] .nav .fab { background: var(--accent); color: var(--on-accent); }
+@media (min-width: 980px) {
+  :root .side .new, :root:not([data-theme="dark"]) .side .new { background: var(--accent); color: var(--on-accent); }
+  :root .side a.it.on, :root:not([data-theme="dark"]) .side a.it.on { background: var(--accent); color: var(--on-accent); }
+  :root:not([data-theme="dark"]) .theme-pill button.on { background: var(--accent); color: var(--on-accent); }
+}
