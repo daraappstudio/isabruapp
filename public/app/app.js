@@ -860,6 +860,8 @@ routes.home = async () => {
 };
 globalActions.newtx = () => forms.transaction();globalActions.newtx = () => forms.transaction();
 globalActions.newin = () => forms.transaction({ kind: "income" });
+globalActions.newfixout = () => forms.recurring({ kind: "expense" });
+globalActions.newfixin = () => forms.recurring({ kind: "income" });
 
 /* ---------- aba Casa ---------- */
 const MOD_INFO = {
@@ -897,7 +899,7 @@ routes.casa = async () => {
 
 /* ---------- menu do + ---------- */
 globalActions.plus = () => openSheet(`<h2>Adicionar</h2><div class="sheet-grid">
-  ${[["newtx", "", "minus-circle", "Gasto"], ["newin", "", "plus-circle", "Entrada"], ["quick", "compras", "shopping-bag", "Compra"], ["quick", "tarefas", "list-checks", "Tarefa"], ["quick", "lembretes", "calendar-heart", "Lembrete"], ["quick", "mural", "message-circle-heart", "Recado"], ["quick", "fixos", "repeat", "Fixo"], ["quick", "desejos", "gift", "Desejo"], ["quick", "atalhos", "link", "Atalho"]]
+  ${[["newtx", "", "minus-circle", "Gasto"], ["newin", "", "plus-circle", "Entrada"], ["quick", "compras", "shopping-bag", "Compra"], ["newfixout", "", "repeat", "Gasto fixo"], ["newfixin", "", "badge-dollar-sign", "Receita fixa"], ["quick", "caixinhas", "piggy-bank", "Caixinha"], ["quick", "tarefas", "list-checks", "Tarefa"], ["quick", "lembretes", "calendar-heart", "Lembrete"], ["quick", "mural", "message-circle-heart", "Recado"]]
     .map(([a, m, i, l]) => `<button data-qa="${a}" data-m="${m}">${ic(i)}${l}</button>`).join("")}
   </div>`, (sheet, close) => sheet.addEventListener("click", (e) => {
     const b = e.target.closest("[data-qa]");
@@ -1128,6 +1130,7 @@ routes.fixos = async (tab = "gastos") => {
   </div>
   ${chips([["gastos", "Gastos"], ["receitas", "Receitas"], ["assinaturas", "Assinaturas"]], tab)}
   <div class="list">${list.length ? list.map(row).join("") : empty(tab === "receitas" ? "Cadastre salário e outras entradas que caem todo mês." : tab === "assinaturas" ? "Marque “É uma assinatura” num gasto fixo pra ele aparecer aqui." : "Cadastre aluguel, luz, internet, condomínio…")}</div>
+  <button class="add-row" data-a="${tab === "receitas" ? "newfixin" : "newfixout"}">${tab === "receitas" ? "Nova receita fixa" : "Novo gasto fixo"} ${ic("plus")}</button>
   ${tab !== "receitas" && suggestions.length ? `<div class="section-title">Parece assinatura</div>
   <div class="list">${suggestions.map((t) => `<div class="row" data-a="suggest" data-id="${t.id}">
     <div class="ic acc">${ic("sparkles")}</div>

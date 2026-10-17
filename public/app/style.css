@@ -423,3 +423,6 @@ svg.lucide { stroke-width: 1.5; width: 1em; height: 1em; flex: none; }
 /* título do topo normal */
 .page-title { font-size: 30px; font-weight: 500; letter-spacing: -0.03em; color: var(--on-bg); margin: 2px 4px 16px; line-height: 1.1; }
 @media (min-width: 980px) { .page-title { font-size: 34px; } }
+
+/* botões do formulário sempre visíveis (gaveta longa) */
+.sheet .actions { position: sticky; bottom: calc(-18px - var(--safe-b)); background: var(--surface); padding: 12px 0 calc(18px + var(--safe-b)); margin-bottom: calc(-18px - var(--safe-b)); z-index: 2; }
