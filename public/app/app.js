@@ -363,7 +363,7 @@ function sideHtml(name) {
     <button class="new" data-a="plus">${ic("plus")} Adicionar</button>
     ${it("", "house", "Início")}
     <div class="grp">Dinheiro</div>
-    ${it("financas", "wallet", "Mês")}${it("fixos", "repeat", "Fixos")}${it("caixinhas", "piggy-bank", "Caixinhas")}
+    ${it("financas", "wallet", "Mês")}${it("fixos", "repeat", "Fixos")}${it("caixinhas", "piggy-bank", "Caixinhas")}${it("analise", "chart-pie", "Análise")}
     <div class="grp">${esc(state.household?.name || "Casa")}</div>
     ${CASA_MODS.filter((k) => P.mods[k] !== false).map((k) => it(k, MOD_INFO[k].i, MOD_INFO[k].t)).join("")}
     <div class="grp"></div>
@@ -391,7 +391,7 @@ const globalActions = {
 };
 
 const CASA_MODS = ["compras", "tarefas", "lembretes", "mural", "desejos", "juntos", "info", "atalhos", "cofre"];
-const MONEY_ROUTES = ["financas", "fixos", "caixinhas"];
+const MONEY_ROUTES = ["financas", "fixos", "caixinhas", "analise"];
 const HUBS = [["home", "início", "#/"], ["dinheiro", "dinheiro", "#/financas"], ["casa", "casa", "#/casa"], ["ajustes", "ajustes", "#/ajustes"]];
 const hubOf = (name) => (MONEY_ROUTES.includes(name) ? "dinheiro" : ["home", "casa", "ajustes"].includes(name) ? name : null);
 function topbar(title, right) {
@@ -413,7 +413,7 @@ function topbar(title, right) {
     <div id="topAct">${right ?? ""}</div>
   </header>`;
 }
-const moneyTabs = (cur) => `<div class="tabs-top">${[["financas", "Mês"], ["fixos", "Fixos"], ["caixinhas", "Caixinhas"]].map(([k, l]) => `<button class="${k === cur ? "on" : ""}" data-a="nav" data-to="#/${k}">${l}</button>`).join("")}</div>`;
+const moneyTabs = (cur) => `<div class="tabs-top">${[["financas", "Mês"], ["fixos", "Fixos"], ["caixinhas", "Caixinhas"], ["analise", "Análise"]].map(([k, l]) => `<button class="${k === cur ? "on" : ""}" data-a="nav" data-to="#/${k}">${l}</button>`).join("")}</div>`;
 const chips = (items, current) => `<div class="chips">${items.map(([v, l]) => `<button class="chip ${v === current ? "on" : ""}" data-a="tab" data-v="${v}">${esc(l)}</button>`).join("")}</div>`;
 const cta = (label, action, icon = "plus", m = "") => `<template data-cta data-a="${action}" data-m="${m}" data-icon="${icon}" data-label="${esc(label)}"></template>`;
 const empty = (msg) => `<div class="empty">${msg}</div>`;
@@ -1057,7 +1057,8 @@ routes.financas = async (tab = "extrato") => {
       }).join("")}</div>`;
   }
 
-  if (tab === "balanco") {
+  if (tab === "balanco") { go("#/analise", true); return ""; }
+  if (false) {
     const exp = s.mt.filter((t) => t.kind === "expense");
     const prevExp = sp.mt.filter((t) => t.kind === "expense");
     const fixed = sum(exp.filter((t) => t.recurring_id), (t) => t.amount);
@@ -1124,12 +1125,218 @@ routes.financas = async (tab = "extrato") => {
       </div>
     </aside>
     <section class="rcol">
-      ${chips([["extrato", "Extrato"], ["balanco", "Balanço"], ["orcamento", "Orçamento"]], tab)}
+      ${chips([["extrato", "Extrato"], ["orcamento", "Orçamento"]], tab)}${tab === "balanco" ? "" : ""}
       ${body}
     </section>
   </div>
   ${cta("Novo lançamento", "newtx")}`;
 };
+/* ---------- análise (gráficos) ---------- */
+// Paleta categórica validada (claro/escuro). A cor segue a categoria (ordem fixa), nunca o ranking.
+const SERIES_LIGHT = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
+const SERIES_DARK = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"];
+const OTHER_LIGHT = "#a3a8ad", OTHER_DARK = "#6b7074";
+const seriesColors = () => (document.documentElement.dataset.theme === "dark" ? SERIES_DARK : SERIES_LIGHT);
+const otherColor = () => (document.documentElement.dataset.theme === "dark" ? OTHER_DARK : OTHER_LIGHT);
+function catColor(catId) {
+  const exp = state.cats.filter((c) => c.kind === "expense");
+  const i = exp.findIndex((c) => c.id === catId);
+  return i >= 0 && i < 8 ? seriesColors()[i] : otherColor();
+}
+const compact = (v) => {
+  const n = Math.abs(v);
+  if (n >= 1e6) return `R$ ${(v / 1e6).toFixed(1).replace(".", ",")} mi`;
+  if (n >= 1e4) return `R$ ${Math.round(v / 1e3)} mil`;
+  if (n >= 1e3) return `R$ ${(v / 1e3).toFixed(1).replace(".", ",")} mil`;
+  return brl0(v);
+};
+
+// Rosca segmentada com pontas arredondadas e respiro entre fatias
+function donut(segments, centerBig, centerSmall) {
+  const total = sum(segments, (s) => s.v);
+  const R = 80, W = 14, C = 100;
+  const capGap = (W / R) + 0.06; // espaço que as pontas redondas ocupam + respiro
+  let a = -Math.PI / 2;
+  // fatias pequenas ganham um tamanho mínimo visível; as grandes cedem o espaço
+  const live = segments.filter((x) => x.v > 0);
+  const minSpan = live.length > 1 ? capGap + 0.1 : 0;
+  let spans = live.map((x) => (x.v / total) * Math.PI * 2);
+  const small = spans.map((sp) => sp < minSpan);
+  const need = sum(spans.filter((sp, i) => small[i]).map((sp) => minSpan - sp));
+  const bigTotal = sum(spans.filter((sp, i) => !small[i]));
+  spans = spans.map((sp, i) => (small[i] ? minSpan : sp - (bigTotal ? (sp / bigTotal) * need : 0)));
+  const arcs = total > 0 ? live.map((s, idx) => {
+    const span = spans[idx];
+    const a0 = a + (segments.length > 1 ? capGap / 2 : 0), a1 = a + span - (segments.length > 1 ? capGap / 2 : 0);
+    a += span;
+    if (a1 <= a0) return `<circle cx="${C + R * Math.cos(a0)}" cy="${C + R * Math.sin(a0)}" r="${W / 2}" fill="${s.c}" data-tip="${esc(s.l)}: ${brl(s.v)} (${Math.round((s.v / total) * 100)}%)"/>`;
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    const x0 = C + R * Math.cos(a0), y0 = C + R * Math.sin(a0), x1 = C + R * Math.cos(a1), y1 = C + R * Math.sin(a1);
+    if (segments.filter((x) => x.v > 0).length === 1) return `<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="${s.c}" stroke-width="${W}" data-tip="${esc(s.l)}: ${brl(s.v)}"/>`;
+    return `<path d="M${x0.toFixed(2)} ${y0.toFixed(2)} A${R} ${R} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}" fill="none" stroke="${s.c}" stroke-width="${W}" stroke-linecap="round" data-tip="${esc(s.l)}: ${brl(s.v)} (${Math.round((s.v / total) * 100)}%)"/>`;
+  }).join("") : `<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="var(--surface-2)" stroke-width="${W}"/>`;
+  return `<div class="donut"><svg viewBox="0 0 200 200" role="img" aria-label="Gastos por categoria">${arcs}</svg>
+    <div class="donut-center"><b class="money">${centerBig}</b>${centerSmall ? `<small>${centerSmall}</small>` : ""}</div></div>`;
+}
+function legend(segments) {
+  const total = sum(segments, (s) => s.v) || 1;
+  return `<div class="legend">${segments.map((s) => `<div class="lg-row" data-tip="${esc(s.l)}: ${brl(s.v)}"><i style="background:${s.c}"></i><span>${esc(s.l)}</span><b class="money">${brl0(s.v)}</b><em>${Math.round((s.v / total) * 100)}%</em></div>`).join("")}</div>`;
+}
+
+routes.analise = async (period = "mes") => {
+  const t0 = today0();
+  const ranges = {
+    "7d": [addDays(t0, -6), t0, "nos últimos 7 dias"],
+    mes: [monthStart(t0), t0, `em ${monthName(t0)}`],
+    "3m": [new Date(t0.getFullYear(), t0.getMonth() - 2, 1), t0, "nos últimos 3 meses"],
+    "12m": [new Date(t0.getFullYear(), t0.getMonth() - 11, 1), t0, "nos últimos 12 meses"],
+  };
+  const [from, to, label] = ranges[period] || ranges.mes;
+  const spanDays = Math.round((to - from) / 864e5) + 1;
+  const prevFrom = period === "mes" ? new Date(t0.getFullYear(), t0.getMonth() - 1, 1) : addDays(from, -spanDays);
+  const prevTo = period === "mes" ? clampDate(t0.getFullYear(), t0.getMonth() - 1, t0.getDate()) : addDays(from, -1);
+  const histFrom = new Date(t0.getFullYear(), t0.getMonth() - 5, 1);
+  const minFrom = new Date(Math.min(prevFrom, histFrom));
+  const txs = await db.list("transactions", (b) => b.gte("date", iso(minFrom)).lte("date", iso(to)).order("date"), `an-${period}`);
+  const inR = (t, a, b) => { const d = parseD(t.date); return d >= a && d <= b; };
+  const cur = txs.filter((t) => inR(t, from, to));
+  const prev = txs.filter((t) => inR(t, prevFrom, prevTo));
+  const exp = cur.filter((t) => t.kind === "expense"), inc = cur.filter((t) => t.kind === "income");
+  const expTotal = sum(exp, (t) => t.amount), incTotal = sum(inc, (t) => t.amount);
+  const prevExp = sum(prev.filter((t) => t.kind === "expense"), (t) => t.amount);
+
+  // rosca: categorias com cor fixa; o que não tem cor própria vira "Outros"
+  const byCat = {};
+  exp.forEach((t) => { const k = t.category_id || "x"; byCat[k] = (byCat[k] || 0) + Number(t.amount); });
+  const prevByCat = {};
+  prev.filter((t) => t.kind === "expense").forEach((t) => { const k = t.category_id || "x"; prevByCat[k] = (prevByCat[k] || 0) + Number(t.amount); });
+  const named = [], others = { l: "Outros", v: 0, c: otherColor() };
+  Object.entries(byCat).sort((a, b) => b[1] - a[1]).forEach(([id, v]) => {
+    const col = catColor(id);
+    if (col === otherColor() || named.length >= 6) others.v += v;
+    else named.push({ id, l: catById(id)?.name || "Sem categoria", v, c: col });
+  });
+  const segs = others.v > 0 ? [...named, others] : named;
+
+  const fixed = sum(exp.filter((t) => t.recurring_id), (t) => t.amount);
+  const variable = expTotal - fixed;
+  const d = prevExp ? Math.round(((expTotal - prevExp) / prevExp) * 100) : null;
+
+  // entrou × saiu por mês (6 meses)
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const mm = new Date(t0.getFullYear(), t0.getMonth() - i, 1);
+    const mt = txs.filter((t) => inMonth(t.date, mm));
+    months.push({ mm, inc: sum(mt.filter((t) => t.kind === "income"), (t) => t.amount), out: sum(mt.filter((t) => t.kind === "expense"), (t) => t.amount) });
+  }
+  const maxM = Math.max(1, ...months.map((x) => Math.max(x.inc, x.out)));
+
+  // gasto do dia a dia por dia do período (até 31 barras; períodos longos agrupam por mês)
+  let bars = [];
+  if (spanDays <= 31) {
+    for (let i = 0; i < spanDays; i++) {
+      const day = addDays(from, i);
+      bars.push({ l: shortDate(day), v: sum(exp.filter((t) => !t.recurring_id && t.date === iso(day)), (t) => t.amount), today: +day === +t0 });
+    }
+  } else {
+    for (let m = new Date(from); m <= to; m = new Date(m.getFullYear(), m.getMonth() + 1, 1)) {
+      bars.push({ l: monthName(m, { month: "short" }).replace(".", ""), v: sum(exp.filter((t) => !t.recurring_id && inMonth(t.date, m)), (t) => t.amount) });
+    }
+  }
+  const maxB = Math.max(1, ...bars.map((b) => b.v));
+  const avgDay = spanDays ? variable / spanDays : 0;
+
+  const top = [...exp].sort((a, b) => b.amount - a.amount).slice(0, 5);
+  const byWho = {};
+  exp.forEach((t) => (byWho[t.created_by || "?"] = (byWho[t.created_by || "?"] || 0) + Number(t.amount)));
+  const whoSegs = Object.entries(byWho).sort((a, b) => b[1] - a[1]).map(([uid, v], i) => ({ l: memberName(uid) || "—", v, c: seriesColors()[i] || otherColor() }));
+
+  handlers.edit = (dd) => forms.transaction(txs.find((t) => t.id === dd.id));
+
+  const cardEmpty = emptyState("chart-pie", "Sem gastos nesse período ainda.");
+  return `${topbar("Dinheiro")}
+  ${moneyTabs("analise")}
+  ${chips([["7d", "7 dias"], ["mes", "Este mês"], ["3m", "3 meses"], ["12m", "12 meses"]], period)}
+  <div class="an-grid">
+    <div class="card an-card an-main">
+      <div class="an-head"><span class="tag ink">Gastos</span><span class="muted">${label}</span></div>
+      ${exp.length ? `<div class="an-donut-wrap">${donut(segs, compact(expTotal), d === null ? "" : `${d > 0 ? "▲" : d < 0 ? "▼" : "="} ${Math.abs(d)}% vs antes`)}${legend(segs)}</div>` : cardEmpty}
+    </div>
+
+    <div class="card an-card">
+      <div class="an-head"><span class="tag">Fixos × dia a dia</span></div>
+      ${exp.length ? `<div class="big money" style="font-size:30px;margin:6px 0 10px">${brl0(expTotal)}</div>
+      <div class="stackbar"><i style="width:${(fixed / expTotal) * 100}%;background:${seriesColors()[0]}" data-tip="Fixos: ${brl(fixed)}"></i><i style="width:${(variable / expTotal) * 100}%;background:${seriesColors()[1]}" data-tip="Dia a dia: ${brl(variable)}"></i></div>
+      <div class="legend inline"><div class="lg-row"><i style="background:${seriesColors()[0]}"></i><span>Fixos</span><b class="money">${brl0(fixed)}</b><em>${Math.round((fixed / expTotal) * 100)}%</em></div>
+      <div class="lg-row"><i style="background:${seriesColors()[1]}"></i><span>Dia a dia</span><b class="money">${brl0(variable)}</b><em>${Math.round((variable / expTotal) * 100)}%</em></div></div>
+      <div class="an-foot">Média do dia a dia: <b class="money">${brl0(avgDay)}</b> por dia</div>` : cardEmpty}
+    </div>
+
+    <div class="card an-card">
+      <div class="an-head"><span class="tag">Entrou × saiu</span><span class="muted">6 meses</span></div>
+      <div class="vbars">${months.map((x) => `<div class="vb"><div class="pair">
+        <i style="height:${Math.max(1, (x.inc / maxM) * 100)}%;background:${seriesColors()[2]}" data-tip="${monthName(x.mm)} · entrou ${brl(x.inc)}"></i>
+        <i style="height:${Math.max(1, (x.out / maxM) * 100)}%;background:${seriesColors()[1]}" data-tip="${monthName(x.mm)} · saiu ${brl(x.out)}"></i></div>
+        <small>${monthName(x.mm, { month: "short" }).replace(".", "")}</small></div>`).join("")}</div>
+      <div class="legend inline compact"><div class="lg-row"><i style="background:${seriesColors()[2]}"></i><span>Entrou</span></div><div class="lg-row"><i style="background:${seriesColors()[1]}"></i><span>Saiu</span></div></div>
+    </div>
+
+    <div class="card an-card">
+      <div class="an-head"><span class="tag">Dia a dia</span><span class="muted">${spanDays <= 31 ? "por dia" : "por mês"}</span></div>
+      ${variable > 0 ? `<div class="vbars thin">${bars.map((b) => `<div class="vb"><div class="one"><i class="${b.today ? "today" : ""}" style="height:${Math.max(1, (b.v / maxB) * 100)}%;background:${b.today ? seriesColors()[0] : "color-mix(in oklab, var(--fg) 35%, transparent)"}" data-tip="${b.l}: ${brl(b.v)}"></i></div></div>`).join("")}</div>
+      <div class="an-axis"><span>${bars[0]?.l || ""}</span><span>${bars[bars.length - 1]?.l || ""}</span></div>` : cardEmpty}
+    </div>
+
+    <div class="card an-card">
+      <div class="an-head"><span class="tag">Por categoria</span><span class="muted">vs período anterior</span></div>
+      ${Object.keys(byCat).length ? Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([id, v]) => {
+        const pv = prevByCat[id] || 0;
+        const dd = pv ? Math.round(((v - pv) / pv) * 100) : null;
+        return `<div class="cat-row"><i style="background:${catColor(id)}"></i><span>${esc(catById(id)?.name || "Sem categoria")}</span>
+          <div class="cbar"><b style="width:${(v / expTotal) * 100}%;background:${catColor(id)}"></b></div>
+          <strong class="money">${brl0(v)}</strong><em class="${dd === null ? "" : dd > 0 ? "neg" : "pos"}">${dd === null ? "novo" : `${dd > 0 ? "▲" : dd < 0 ? "▼" : "="}${Math.abs(dd)}%`}</em></div>`;
+      }).join("") : cardEmpty}
+    </div>
+
+    <div class="card an-card">
+      <div class="an-head"><span class="tag">Maiores gastos</span></div>
+      ${top.length ? top.map((t) => `<div class="row" data-a="edit" data-id="${t.id}"><div class="ic">${ic(catById(t.category_id)?.icon || "tag")}</div><div class="main"><div class="t">${esc(t.description)}</div><div class="s">${shortDate(parseD(t.date))} · ${esc(catById(t.category_id)?.name || "")}</div></div><div class="v">${brl(t.amount)}</div></div>`).join("") : cardEmpty}
+    </div>
+
+    ${state.members.length > 1 && exp.length ? `<div class="card an-card">
+      <div class="an-head"><span class="tag">Quem lançou</span></div>
+      <div class="stackbar">${whoSegs.map((s) => `<i style="width:${(s.v / expTotal) * 100}%;background:${s.c}" data-tip="${esc(s.l)}: ${brl(s.v)}"></i>`).join("")}</div>
+      ${legend(whoSegs)}
+    </div>` : ""}
+
+    <div class="card an-card">
+      <div class="an-head"><span class="tag">Resumo</span><span class="muted">${label}</span></div>
+      <div class="bal-row"><span>Entrou</span><b class="money">${brl0(incTotal)}</b><span></span></div>
+      <div class="bal-row"><span>Saiu</span><b class="money">${brl0(expTotal)}</b><span></span></div>
+      <div class="bal-row total"><span>Sobrou</span><b class="money ${incTotal - expTotal < 0 ? "neg" : ""}">${brl0(incTotal - expTotal)}</b><span class="delta">${incTotal > 0 ? Math.round(((incTotal - expTotal) / incTotal) * 100) + "% da renda" : ""}</span></div>
+    </div>
+  </div>`;
+};
+
+/* tooltip dos gráficos (passar o mouse ou tocar) */
+(() => {
+  const tip = document.createElement("div");
+  tip.className = "viz-tip";
+  document.body.appendChild(tip);
+  const show = (e) => {
+    const el = e.target.closest?.("[data-tip]");
+    if (!el || !app.contains(el)) { tip.classList.remove("show"); return; }
+    tip.textContent = el.dataset.tip;
+    const x = e.clientX ?? el.getBoundingClientRect().left, y = e.clientY ?? el.getBoundingClientRect().top;
+    tip.style.left = Math.min(innerWidth - tip.offsetWidth - 8, Math.max(8, x - tip.offsetWidth / 2)) + "px";
+    tip.style.top = Math.max(8, y - tip.offsetHeight - 14) + "px";
+    tip.classList.add("show");
+  };
+  document.addEventListener("pointermove", show);
+  document.addEventListener("pointerdown", show);
+  document.addEventListener("scroll", () => tip.classList.remove("show"), { passive: true });
+})();
+
 /* ---------- fixos ---------- */
 routes.fixos = async (tab = "gastos") => {
   const m = monthStart(new Date());
