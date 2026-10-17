@@ -95,17 +95,26 @@
     window.addEventListener("appinstalled", () => { how.hidden = false; how.innerHTML = "<b>Pronto!</b> O Bunny já está instalado. Pode abrir pelo ícone."; });
 
     function showHow(html) { how.innerHTML = html; how.hidden = false; }
+    const isEdge = /Edg\//.test(ua);
+    const isAndroid = /Android/i.test(ua);
+    function guide() {
+      if (isIOS) return "<b>No iPhone:</b> abra este site no <b>Safari</b>, toque em <b>Compartilhar</b> (quadrado com a seta) e depois em <b>Adicionar à Tela de Início</b>.";
+      if (isMacSafari) return "<b>No Mac (Safari):</b> menu <b>Arquivo › Adicionar ao Dock</b>.";
+      if (isFirefox) return "O Firefox não instala apps. Abra este site no <b>Chrome</b> ou no <b>Edge</b>.";
+      if (isAndroid) return "<b>No Android:</b> toque nos <b>três pontinhos ⋮</b> do Chrome e em <b>Instalar app</b> (ou Adicionar à tela inicial).";
+      if (isEdge) return "<b>No Edge:</b> clique no ícone de app na barra de endereço (à direita) ou no menu <b>⋯ › Aplicativos › Instalar este site como aplicativo</b>.";
+      return "<b>No Chrome:</b> clique no ícone de instalar na barra de endereço (à direita) ou no menu <b>⋮ › Transmitir, salvar e compartilhar › Instalar página como app</b>.";
+    }
     btn.addEventListener("click", async () => {
+      showHow(guide());
       if (deferred) {
-        deferred.prompt();
-        const r = await deferred.userChoice;
-        deferred = null;
-        if (r.outcome === "accepted") return;
+        const d = deferred; deferred = null;
+        try {
+          d.prompt();
+          const r = await d.userChoice;
+          if (r.outcome === "accepted") showHow("<b>Pronto!</b> O Bunny foi instalado. Abra pelo ícone.");
+        } catch (e) {}
       }
-      if (isIOS) showHow("<b>No iPhone:</b> abra este site no <b>Safari</b>, toque em <b>Compartilhar</b> (o quadrado com a seta) e depois em <b>Adicionar à Tela de Início</b>.");
-      else if (isMacSafari) showHow("<b>No Mac (Safari):</b> menu <b>Arquivo › Adicionar ao Dock</b>.");
-      else if (isFirefox) showHow("O Firefox não instala apps. Abra este site no <b>Chrome</b> ou no <b>Edge</b> e toque em Instalar.");
-      else showHow("<b>No Chrome ou Edge:</b> clique no ícone de instalar na barra de endereço (ou menu <b>⋮ › Instalar Bunny</b>). No Android: menu <b>⋮ › Instalar app</b>.");
     });
   </script>
 </body>
