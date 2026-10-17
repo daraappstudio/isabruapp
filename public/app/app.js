@@ -8,6 +8,11 @@ const app = document.getElementById("app");
 const nav = document.getElementById("nav");
 const side = document.getElementById("side");
 
+/* ---------- instalar (PWA) ---------- */
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; });
+window.addEventListener("appinstalled", () => { installEvt = null; toast("App instalado ✓"); });
+
 /* ---------- utilidades ---------- */
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const ic = (name, cls = "") => `<i data-lucide="${name}" class="${cls}"></i>`;
@@ -342,6 +347,13 @@ function sideHtml(name) {
 }
 
 const globalActions = {
+  install: async () => {
+    if (!installEvt) return toast("Use o menu do navegador › Instalar app");
+    const e = installEvt; installEvt = null;
+    e.prompt();
+    await e.userChoice.catch(() => {});
+    refresh();
+  },
   themeq: (d) => { PREFS.save({ theme: d.v }); refresh(); },
   back: () => go(CASA_MODS.includes(routeParts().name) ? "#/casa" : "#/"),
   nav: (d) => go(d.to),
@@ -1714,7 +1726,7 @@ routes.ajustes = async (tab = "geral") => {
       <div class="muted" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em">Código pra entrar na casa</div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px"><span class="code">${esc(h.invite_code)}</span><span class="round" style="background:var(--surface-2)">${ic("share-2")}</span></div>
     </div>
-    ${standalone ? "" : `<div class="card"><div class="person"><span class="pic">${ic("download")}</span><div class="main"><div class="t">Instalar o app</div><div class="s" style="white-space:normal">${isIOS ? "Safari › Compartilhar › Adicionar à Tela de Início" : "No Chrome ou Edge: ícone de instalar na barra de endereço, ou ⋮ › Instalar app"}</div></div></div></div>`}
+    ${standalone ? "" : `<div class="card" data-a="install"><div class="person"><span class="pic">${ic("download")}</span><div class="main"><div class="t">Instalar o app</div><div class="s" style="white-space:normal">${isIOS ? "Safari › Compartilhar › Adicionar à Tela de Início" : installEvt ? "Toque pra instalar" : "Menu do navegador › Instalar app"}</div></div>${installEvt ? `<span class="small-chip on">Instalar</span>` : ""}</div></div>`}
     <div style="margin-top:16px"><button class="btn ghost" data-a="logout">${ic("log-out")} Sair</button></div>`;
   }
 

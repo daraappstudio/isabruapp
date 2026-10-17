@@ -91,7 +91,7 @@
     const how = document.getElementById("how");
     const btn = document.getElementById("install");
     let deferred = null;
-    window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferred = e; });
+    window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferred = e; btn.classList.add("ready"); });
     window.addEventListener("appinstalled", () => { how.hidden = false; how.innerHTML = "<b>Pronto!</b> O Bunny já está instalado. Pode abrir pelo ícone."; });
 
     function showHow(html) { how.innerHTML = html; how.hidden = false; }
@@ -106,7 +106,7 @@
       return "<b>No Chrome:</b> clique no ícone de instalar na barra de endereço (à direita) ou no menu <b>⋮ › Transmitir, salvar e compartilhar › Instalar página como app</b>.";
     }
     btn.addEventListener("click", async () => {
-      showHow(guide());
+      if (!deferred) showHow(guide());
       if (deferred) {
         const d = deferred; deferred = null;
         try {
