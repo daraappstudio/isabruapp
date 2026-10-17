@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f6f8">
+  <title>Bunny · finanças e casa</title>
+  <meta name="description" content="O app da nossa casa: dinheiro, compras, lembretes e senhas num lugar só.">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <script>if (matchMedia("(display-mode: standalone)").matches || navigator.standalone) location.replace("/app/");</script>
+  <script src="/prefs.js"></script>
+  <link rel="stylesheet" href="/app/style.css">
+  <style>
+    .wrap { max-width: 1080px; margin: 0 auto; padding: calc(var(--safe-t) + 18px) 20px 40px; }
+    .bar-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 40px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+    .brand { color: var(--on-bg); } .brand .m { color: var(--logo); display: grid; }
+    .brand svg { width: 24px; height: 28px; fill: currentColor; }
+    .pill-link { padding: 10px 18px; border-radius: 999px; font-weight: 500; font-size: 14px; }
+    .hero-l { display: grid; gap: 40px; align-items: center; }
+    .eyebrow { display: inline-flex; gap: 8px; align-items: center; padding: 7px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600; margin-bottom: 18px; }
+    .eyebrow { background: var(--glass) !important; color: var(--on-bg); } .eyebrow i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+    h1.title { font-size: clamp(44px, 7vw, 76px); line-height: 0.98; letter-spacing: -0.055em; margin: 0 0 18px; font-weight: 300; color: var(--on-bg); }
+    h1.title em { font-style: normal; color: var(--on-bg); opacity: .75; }
+    .glass { background: var(--surface); }
+    
+    .lead { font-size: 18px; color: var(--on-bg-muted); max-width: 30em; margin: 0 0 28px; }
+    .ctas { display: flex; gap: 10px; flex-wrap: wrap; }
+    .ctas .btn { width: auto; padding: 0 24px; height: 52px; font-size: 15.5px; }
+    .how { margin-top: 18px; border-radius: var(--r); padding: 16px 18px; font-size: 14px; line-height: 1.55; max-width: 30em; }
+    .how b { font-weight: 600; }
+    .phone { width: min(300px, 76vw); aspect-ratio: 9 / 19.5; margin: 0 auto; border-radius: 46px; padding: 9px; background: #111; box-shadow: 0 40px 70px -30px rgba(20, 40, 80, .35), 0 0 0 1px rgba(255,255,255,.08) inset; position: relative; }
+    .phone::before { content: ""; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 92px; height: 26px; border-radius: 20px; background: #000; z-index: 2; }
+    .phone img { width: 100%; height: 100%; object-fit: cover; object-position: top; border-radius: 39px; display: block; background: var(--bg); }
+    .feats { display: grid; gap: 10px; margin-top: 56px; }
+    .feat { border-radius: var(--r); padding: 20px; } .feat h3 { font-weight: 500; }
+    .feat .lucide { font-size: 24px; color: var(--accent-text); }
+    .feat h3 { margin: 14px 0 6px; font-size: 17px; letter-spacing: -0.02em; }
+    .feat p { margin: 0; color: var(--muted); font-size: 14px; }
+    footer { margin-top: 48px; color: var(--on-bg-muted); font-size: 13px; text-align: center; }
+    @media (min-width: 860px) {
+      .hero-l { grid-template-columns: 1.25fr .75fr; }
+      .feats { grid-template-columns: repeat(4, 1fr); }
+      .wrap { padding-top: 28px; }
+    }
+  </style>
+</head>
+<body>
+    <div class="wrap">
+    <header class="bar-top">
+      <div class="brand"><span class="m" id="lm"></span>Bunny</div>
+      <a class="pill-link glass" href="/app/">Entrar</a>
+    </header>
+
+    <section class="hero-l">
+      <div>
+        <span class="eyebrow glass"><i></i>Só nosso · sem anúncio · grátis</span>
+        <h1 class="title">O dinheiro e a casa,<br><em>num lugar só.</em></h1>
+        <p class="lead">Gastos, contas fixas, caixinhas, lista de compras que atualiza nos dois celulares, lembretes e um cofre de senhas.</p>
+        <div class="ctas">
+          <button class="btn" id="install"><i data-lucide="download"></i> Instalar o app</button>
+          <a class="btn ghost" href="/app/" style="background:var(--glass);color:var(--on-bg)">Abrir no navegador</a>
+        </div>
+        <div class="how glass" id="how" hidden></div>
+      </div>
+      <div class="phone"><img src="/icons/preview.png" alt="Tela inicial do app"></div>
+    </section>
+
+    <section class="feats">
+      <div class="feat glass"><i data-lucide="wallet"></i><h3>Dinheiro</h3><p>Extrato, orçamento por categoria, fixos e previsão de quanto sobra no mês.</p></div>
+      <div class="feat glass"><i data-lucide="shopping-bag"></i><h3>Compras</h3><p>Lista compartilhada em tempo real e despensa pra saber o que tá acabando.</p></div>
+      <div class="feat glass"><i data-lucide="calendar-heart"></i><h3>Lembretes</h3><p>Vencimentos, aniversários, pet, plantas e manutenção da casa.</p></div>
+      <div class="feat glass"><i data-lucide="key-round"></i><h3>Senhas e infos</h3><p>Cofre criptografado, Wi-Fi com QR code, CEP e links úteis.</p></div>
+    </section>
+    <footer>Funciona no celular e no computador · instala direto do navegador</footer>
+  </div>
+
+  <script src="/vendor/lucide.min.js"></script>
+  <script>
+    document.getElementById("lm").innerHTML = LOGO_SVG;
+    lucide.createIcons({ icons: lucide.icons, attrs: { "stroke-width": 1.5 } });
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+
+    const ua = navigator.userAgent;
+    const isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isMacSafari = /Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua) && !isIOS;
+    const isFirefox = /Firefox/.test(ua);
+    const how = document.getElementById("how");
+    const btn = document.getElementById("install");
+    let deferred = null;
+    window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferred = e; });
+    window.addEventListener("appinstalled", () => { how.hidden = false; how.innerHTML = "<b>Pronto!</b> O Bunny já está instalado. Pode abrir pelo ícone."; });
+
+    function showHow(html) { how.innerHTML = html; how.hidden = false; }
+    btn.addEventListener("click", async () => {
+      if (deferred) {
+        deferred.prompt();
+        const r = await deferred.userChoice;
+        deferred = null;
+        if (r.outcome === "accepted") return;
+      }
+      if (isIOS) showHow("<b>No iPhone:</b> abra este site no <b>Safari</b>, toque em <b>Compartilhar</b> (o quadrado com a seta) e depois em <b>Adicionar à Tela de Início</b>.");
+      else if (isMacSafari) showHow("<b>No Mac (Safari):</b> menu <b>Arquivo › Adicionar ao Dock</b>.");
+      else if (isFirefox) showHow("O Firefox não instala apps. Abra este site no <b>Chrome</b> ou no <b>Edge</b> e toque em Instalar.");
+      else showHow("<b>No Chrome ou Edge:</b> clique no ícone de instalar na barra de endereço (ou menu <b>⋮ › Instalar Bunny</b>). No Android: menu <b>⋮ › Instalar app</b>.");
+    });
+  </script>
+</body>
+</html>

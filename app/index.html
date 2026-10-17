@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f6f8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Bunny">
+  <title>Bunny</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="preload" href="/fonts/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <script src="/prefs.js"></script>
+  <link rel="stylesheet" href="/app/style.css">
+</head>
+<body>
+    <main id="app"><div class="loading"><i data-lucide="loader" class="spin"></i></div></main>
+  <aside class="side" id="side" hidden aria-label="Menu"></aside>
+  <nav class="nav" id="nav" hidden aria-label="Navegação">
+    <a href="#/" data-g="home"><i data-lucide="house"></i>Início</a>
+    <a href="#/financas" data-g="dinheiro"><i data-lucide="wallet"></i>Dinheiro</a>
+    <button class="fab" data-a="plus" aria-label="Adicionar"><i data-lucide="plus"></i></button>
+    <a href="#/casa" data-g="casa"><i data-lucide="layout-grid"></i>Casa</a>
+    <a href="#/ajustes" data-g="ajustes"><i data-lucide="settings-2"></i>Ajustes</a>
+  </nav>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/vendor/supabase.js"></script>
+  <script src="/vendor/lucide.min.js"></script>
+  <script src="/vendor/qrcode.js"></script>
+  <script src="/app/config.js"></script>
+  <script src="/app/app.js"></script>
+</body>
+</html>
