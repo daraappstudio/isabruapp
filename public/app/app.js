@@ -176,6 +176,10 @@ function fieldHtml(f, values) {
       }).join("");
       return `<label class="field">${label}<select name="${f.name}">${body}</select></label>`;
     }
+    case "presets":
+      return `<div class="field"><div class="presets">${f.options.map((p) => `<button type="button" class="preset" data-preset='${esc(JSON.stringify(p.set))}'>${ic(p.i)}<span>${esc(p.l)}</span></button>`).join("")}</div></div>`;
+    case "iconpick":
+      return `<div class="field">${label}<div class="iconpick">${ICON_BANK.map((n) => `<button type="button" class="ip ${String(v || f.value) === n ? "on" : ""}" data-icon="${n}" aria-label="${n}">${ic(n)}</button>`).join("")}<input type="hidden" name="${f.name}" value="${esc(v || f.value || "info")}"></div></div>`;
     case "textarea":
       return `<label class="field">${label}<textarea name="${f.name}" ${ph}>${esc(v)}</textarea></label>`;
     case "toggle":
@@ -192,6 +196,7 @@ function fieldHtml(f, values) {
 function readForm(formEl, fields) {
   const out = {};
   for (const f of fields) {
+    if (f.type === "presets") continue;
     const el = formEl.elements[f.name];
     if (!el) continue;
     let v;
@@ -231,6 +236,29 @@ function form({ title, fields, values = {}, submit = "Salvar", onSubmit, onDelet
       input.value = genPassword();
       input.type = "text";
     }));
+    sheet.querySelectorAll(".iconpick").forEach((box) => box.addEventListener("click", (e) => {
+      const b = e.target.closest(".ip");
+      if (!b) return;
+      box.querySelectorAll(".ip").forEach((x) => x.classList.toggle("on", x === b));
+      box.querySelector("input").value = b.dataset.icon;
+    }));
+    sheet.addEventListener("click", (e) => {
+      const b = e.target.closest(".preset");
+      if (!b) return;
+      const box = b.closest(".presets");
+      const set = JSON.parse(b.dataset.preset);
+      for (const [k, val] of Object.entries(set)) {
+        const el = f.elements[k];
+        if (!el) continue;
+        if (el.type === "checkbox") el.checked = !!val;
+        else { el.value = val; el.dispatchEvent(new Event("change", { bubbles: true })); }
+        const seg = el.closest?.(".seg");
+        if (seg) seg.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x.dataset.v === String(val)));
+      }
+      box.querySelectorAll(".preset").forEach((x) => x.classList.toggle("on", x === b));
+      const amt = f.elements.amount;
+      if (amt) setTimeout(() => amt.focus(), 30);
+    });
     f.addEventListener("submit", async (e) => {
       e.preventDefault();
       const v = readForm(f, fields);
@@ -443,6 +471,32 @@ function advanceChore(dueStr, repeat) {
   return iso(d);
 }
 
+/* ---------- blocos visuais reutilizáveis ---------- */
+const emptyState = (icon, text, action = "") => `<div class="empty-state">${ic(icon)}<p>${text}</p>${action}</div>`;
+const group = (title, inner, extra = "") => `<div class="group">${title ? `<div class="section-title">${title}${extra}</div>` : ""}${inner}</div>`;
+const groups = (arr) => `<div class="groups">${arr.join("")}</div>`;
+
+/* atalhos rápidos (preenchem o formulário com um toque) */
+const PRESETS_FIXED_OUT = [
+  ["Netflix", "tv", "Assinaturas", true], ["Disney+", "popcorn", "Assinaturas", true], ["Prime Video", "clapperboard", "Assinaturas", true],
+  ["Max", "clapperboard", "Assinaturas", true], ["Globoplay", "tv", "Assinaturas", true], ["Spotify", "music", "Assinaturas", true],
+  ["YouTube Premium", "clapperboard", "Assinaturas", true], ["iCloud / Google", "cloud", "Assinaturas", true],
+  ["Aluguel", "house", "Casa", false], ["Condomínio", "building-2", "Casa", false], ["Luz", "zap", "Contas", false],
+  ["Água", "droplet", "Contas", false], ["Gás", "flame", "Contas", false], ["Internet", "wifi", "Contas", false],
+  ["Celular", "smartphone", "Contas", false], ["Academia", "dumbbell", "Saúde", true], ["Plano de saúde", "heart-pulse", "Saúde", false],
+  ["Escola / curso", "graduation-cap", "Outros", false], ["Seguro do carro", "car", "Transporte", false],
+];
+const PRESETS_FIXED_IN = [["Salário", "wallet", "Salário"], ["Freela", "laptop", "Extra"], ["Vale-alimentação", "utensils", "Salário"], ["Aluguel recebido", "house", "Extra"], ["Pensão / mesada", "hand-coins", "Extra"]];
+const PRESETS_TX_OUT = [["Mercado", "shopping-cart", "Mercado"], ["iFood", "bike", "Delivery"], ["Uber / 99", "car", "Transporte"], ["Gasolina", "fuel", "Transporte"], ["Farmácia", "pill", "Saúde"], ["Padaria", "croissant", "Mercado"], ["Restaurante", "utensils", "Lazer"], ["Pet", "paw-print", "Pets"]];
+const PRESETS_TX_IN = [["Salário", "wallet", "Salário"], ["Pix recebido", "hand-coins", "Extra"], ["Freela", "laptop", "Extra"], ["Reembolso", "receipt", "Extra"]];
+const txPresets = (kind) => (kind === "income" ? PRESETS_TX_IN : PRESETS_TX_OUT).map(([l, i, c]) => ({ l, i, set: { description: l, category_id: catIdByName(c, kind) } }));
+const fixedPresets = (kind) => kind === "income"
+  ? PRESETS_FIXED_IN.map(([l, i, c]) => ({ l, i, set: { name: l, category_id: catIdByName(c, "income"), is_subscription: false } }))
+  : PRESETS_FIXED_OUT.map(([l, i, c, sub]) => ({ l, i, set: { name: l, category_id: catIdByName(c, "expense"), is_subscription: sub } }));
+const catIdByName = (name, kind) => state.cats.find((c) => c.name === name && (!kind || c.kind === kind))?.id || state.cats.find((c) => c.kind === kind)?.id;
+
+const ICON_BANK = ["info", "map-pin", "house", "wifi", "key-round", "lock", "phone", "user-round", "users", "car", "file-text", "id-card", "credit-card", "landmark", "heart-pulse", "pill", "stethoscope", "baby", "paw-print", "plug", "droplet", "flame", "zap", "tv", "router", "package", "calendar", "gift", "briefcase", "building-2", "school", "plane", "shield", "star", "wrench", "door-open"];
+
 /* ---------- formulários reutilizáveis (usados na tela e no "+" da home) ---------- */
 const catOptions = (kind) => state.cats
   .filter((c) => !kind || c.kind === kind)
@@ -459,6 +513,7 @@ const forms = {
       values: { kind, date: iso(today0()), category_id: catOptions(kind)[0]?.v, ...t },
       fields: [
         { name: "kind", type: "seg", options: [{ v: "expense", l: "Gasto" }, { v: "income", l: "Entrada" }] },
+        ...(t.id ? [] : [{ name: "_p", type: "presets", options: txPresets(kind) }]),
         { name: "amount", type: "money", label: "Valor", required: true },
         { name: "description", label: "Descrição", required: true, placeholder: "Ex: Mercado, Uber, Pix faxina" },
         { name: "category_id", type: "select", label: "Categoria", options: catOptions(kind) },
@@ -474,6 +529,7 @@ const forms = {
           if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
         };
         f.elements.kind.addEventListener("change", fillCats);
+        f.elements.kind.addEventListener("change", () => { const box = f.querySelector(".presets"); if (box) box.outerHTML = fieldHtml({ name: "_p", type: "presets", options: txPresets(f.elements.kind.value) }, {}).replace(/^<div class="field">|<\/div>$/g, ""); drawIcons(); });
         f.elements.category_id.addEventListener("change", () => (touched = true));
         f.elements.description.addEventListener("input", () => {
           const hit = learned[f.elements.description.value.toLowerCase().trim()];
@@ -491,6 +547,7 @@ const forms = {
       values: { kind, day: 5, active: true, category_id: catOptions(kind)[0]?.v, ...r },
       fields: [
         { name: "kind", type: "seg", options: [{ v: "expense", l: "Gasto fixo" }, { v: "income", l: "Receita fixa" }] },
+        ...(r.id ? [] : [{ name: "_p", type: "presets", options: fixedPresets(kind) }]),
         { name: "name", label: "Nome", required: true, placeholder: "Ex: Aluguel, Internet, Salário" },
         { name: "amount", type: "money", label: "Valor por mês", required: true },
         { name: "day", type: "number", label: "Dia do mês", required: true },
@@ -499,6 +556,9 @@ const forms = {
         { name: "is_subscription", type: "toggle", label: "É uma assinatura" },
         { name: "active", type: "toggle", label: "Ativo" },
       ],
+      setup(f) {
+        f.elements.kind.addEventListener("change", () => { const box = f.querySelector(".presets"); if (box) box.outerHTML = fieldHtml({ name: "_p", type: "presets", options: fixedPresets(f.elements.kind.value) }, {}).replace(/^<div class="field">|<\/div>$/g, ""); drawIcons(); });
+      },
       onSubmit: (v) => {
         v.day = Math.min(31, Math.max(1, v.day || 1));
         v.url = normUrl(v.url);
@@ -621,13 +681,14 @@ const forms = {
   info(i = {}) {
     return form({
       title: i.id ? "Editar informação" : "Nova informação",
-      values: { section: "Casa", ...i },
+      values: { section: "Casa", icon: "info", ...i },
       fields: [
+        { name: "icon", type: "iconpick", label: "Ícone", value: "info" },
         { name: "section", type: "select", label: "Grupo", options: INFO_SECTIONS.map((x) => ({ v: x, l: x })) },
         { name: "label", label: "Nome", required: true, placeholder: "Ex: CEP, Código do portão" },
         { name: "value", type: "textarea", label: "Valor", required: true },
       ],
-      extra: `<p class="muted" style="font-size:12px;margin:-4px 4px 0">Dica: no grupo Wi-Fi, use o nome da rede em "Nome" e a senha em "Valor" que eu gero o QR code pra visita.</p>`,
+      extra: `<p class="form-hint">No grupo Wi-Fi: nome da rede em "Nome" e senha em "Valor", que eu gero o QR code pra visita.</p>`,
       onSubmit: (v) => (i.id ? db.set("info_items", i.id, v) : db.add("info_items", v)),
       onDelete: i.id ? () => db.del("info_items", i.id) : null,
     });
@@ -769,38 +830,38 @@ routes.home = async () => {
   const m = monthStart(new Date());
   const t0 = today0();
   const P = PREFS.get();
-  const [txs, recs, rems, chores, notes, shop] = await Promise.all([
+  const [txs, recs, rems, chores, notes, shop, moves, boxes] = await Promise.all([
     db.list("transactions", (b) => b.gte("date", iso(m)).lte("date", iso(monthEnd(m))), "home-tx"),
     db.list("recurring", (b) => b, "recurring"),
     db.list("reminders", (b) => b, "reminders"),
     db.list("chores", (b) => b.eq("done", false).order("due", { ascending: true, nullsFirst: false }), "home-chores"),
     db.list("notes", (b) => b.order("created_at", { ascending: false }).limit(1), "home-notes"),
     db.list("shopping_items", (b) => b.eq("checked", false).order("created_at"), "home-shop"),
+    db.list("savings_moves", (b) => b.select("amount,box_id"), "home-moves"),
+    db.list("savings_boxes", (b) => b.order("created_at"), "boxes"),
   ]);
   const s = monthSummary(txs, recs, m);
 
   const upcoming = [];
   s.pending.forEach((r) => {
     const d = fixedDate(r, m);
-    const n = diffDays(d);
-    if (n <= 7) upcoming.push({ d, t: r.name, sub: n < 0 ? `Atrasado · ${rel(d)}` : r.kind === "income" ? "Receita fixa" : "Conta fixa", v: brl(r.amount), cls: n < 0 && r.kind === "expense" ? "neg" : "", to: "#/fixos" });
+    if (diffDays(d) <= 7) upcoming.push({ d, t: r.name, sub: r.kind === "income" ? "Receita fixa" : "Conta fixa", v: brl0(r.amount), to: "#/fixos", late: diffDays(d) < 0 });
   });
   rems.forEach((r) => {
     const d = nextOccurrence(r.date, r.repeat);
     const n = diffDays(d);
-    if (n >= 0 && n <= 14) upcoming.push({ d, t: r.title, sub: REMINDER_KINDS[r.kind]?.l, v: "", to: "#/lembretes" });
+    if (n >= 0 && n <= 7) upcoming.push({ d, t: r.title, sub: REMINDER_KINDS[r.kind]?.l, v: "", to: "#/lembretes" });
   });
-  chores.filter((c) => c.due && diffDays(parseD(c.due)) <= 2).forEach((c) => {
+  chores.filter((c) => c.due && diffDays(parseD(c.due)) <= 1).forEach((c) => {
     const d = parseD(c.due);
-    upcoming.push({ d, t: c.title, sub: `Tarefa${c.assignee ? " · " + memberName(c.assignee) : ""}`, v: "", cls: d < t0 ? "warn" : "", to: "#/tarefas" });
+    upcoming.push({ d, t: c.title, sub: "Tarefa", v: "", to: "#/tarefas", late: d < t0 });
   });
   upcoming.sort((a, b) => a.d - b.d);
 
-  const hour = new Date().getHours();
-  const hello = hour < 5 ? "Boa noite" : hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
   const spentPct = s.income > 0 ? Math.min(100, Math.round((s.expense / s.income) * 100)) : null;
   const left = daysIn(m.getFullYear(), m.getMonth()) - t0.getDate();
   const note = notes[0];
+  const saved = sum(moves, (x) => x.amount);
 
   handlers.privacy = () => { PREFS.save({ private: !PREFS.get().private }); refresh(); };
   handlers.shopToggle = async (d) => { await db.set("shopping_items", d.id, { checked: true }); toast("Comprado ✓"); refresh(); };
@@ -817,49 +878,61 @@ routes.home = async () => {
     refresh();
   };
 
-  const shortD = (d) => `${d.getDate()} ${monthName(d, { month: "short" }).replace(".", "")}`;
-  const nextRows = upcoming.slice(0, 3).map((u) => {
+  const chip = (u) => {
     const n = diffDays(u.d);
-    return `<div class="row" data-a="nav" data-to="${u.to}">
-      <div class="main"><div class="t">${esc(u.t)}</div></div>
-      <span class="datechip ${n < 0 ? "late" : n <= 1 ? "soon" : ""}">${n === 0 ? "hoje" : n === 1 ? "amanhã" : n < 0 ? "atrasado" : shortD(u.d)}</span>
+    const txt = u.late ? "atrasado" : n === 0 ? "hoje" : n === 1 ? "amanhã" : `${u.d.getDate()} ${monthName(u.d, { month: "short" }).replace(".", "")}`;
+    return `<span class="datechip ${u.late ? "late" : n <= 1 ? "soon" : ""}">${txt}</span>`;
+  };
+  const nextCard = `<div class="card home-card">
+      <div class="card-head"><span>Próximos 7 dias</span><a href="#/lembretes">ver tudo</a></div>
+      ${upcoming.length ? upcoming.slice(0, 6).map((u) => `<div class="row" data-a="nav" data-to="${u.to}">
+        <div class="main"><div class="t">${esc(u.t)}</div><div class="s">${esc(u.sub || "")}${u.v ? " · " + u.v : ""}</div></div>${chip(u)}
+      </div>`).join("") : emptyState("calendar-check", "Nada vencendo nos próximos dias.")}
     </div>`;
-  }).join("");
+
   return `${topbar("Início", `<a class="count-pill" href="#/lembretes" aria-label="Lembretes"><b>${upcoming.length}</b>${ic("calendar")}</a>`)}
-  <div class="home-wrap"><div>
-    <div class="sheet-card">
-      <div class="sec row-sec"><span class="tag blue">${monthName(m).replace(/^./, (c) => c.toUpperCase())}</span><span class="tag beige">${left} dias</span>${spentPct === null ? "" : `<span class="right muted">${spentPct}% gasto</span>`}</div>
+  <div class="board">
+    <div class="sheet-card home-card">
       <div class="sec">
-        <div class="lbl">Sobra prevista <button class="eye" data-a="privacy" aria-label="Esconder valores" style="margin-left:auto">${ic(P.private ? "eye-off" : "eye")}</button></div>
+        <div class="lbl">Sobra prevista · ${monthName(m)}<button class="eye" data-a="privacy" aria-label="Esconder valores">${ic(P.private ? "eye-off" : "eye")}</button></div>
         <div class="big">${brl0(s.forecast)}</div>
-        ${spentPct === null ? "" : `<div class="hc-bar"><i style="width:${spentPct}%"></i></div>`}
+        ${spentPct === null
+          ? `<div class="hint-in">Lance uma entrada pra ver quanto da renda já foi.</div>`
+          : `<div class="hc-bar"><i style="width:${spentPct}%"></i></div><div class="hc-foot"><span>${spentPct}% da renda gasto</span><span>${left === 0 ? "último dia" : `${left} dias pro fim do mês`}</span></div>`}
       </div>
       <div class="sec two">
         <div><div class="lbl">Entrou</div><div class="val">${brl0(s.income)}</div></div>
         <div><div class="lbl">Saiu</div><div class="val">${brl0(s.expense)}</div></div>
       </div>
-      ${P.homeNext && upcoming.length ? `<div class="sec"><div class="lbl">Próximos</div>${nextRows}</div>` : ""}
       <div class="card-foot">
         <button data-a="newtx">${ic("minus")} Gasto</button>
         <button data-a="newin">${ic("plus")} Entrada</button>
         <button class="go" data-a="plus" aria-label="Adicionar"><span>${ic("plus")}</span></button>
       </div>
     </div>
-  </div>
-  <div class="board desk-only">
-    <div class="col">
-      <div class="col-head">Compras <a href="#/compras">abrir</a></div>
+    ${P.homeNext ? nextCard : ""}
+    <div class="card home-card desk-only">
+      <div class="card-head"><span>Compras · ${shop.length}</span><a href="#/compras">abrir</a></div>
       <form data-submit="qshop" class="quick-add"><input id="qname" name="qname" class="input" placeholder="Adicionar item" autocomplete="off"><button class="round" aria-label="Adicionar">${ic("plus")}</button></form>
-      <div class="list">${shop.slice(0, 8).map((i) => `<div class="row" data-a="shopToggle" data-id="${i.id}"><span class="check">${ic("check")}</span><div class="main"><div class="t">${esc(i.name)}</div></div></div>`).join("") || `<div class="empty">Lista vazia</div>`}</div>
+      ${shop.length ? shop.slice(0, 7).map((i) => `<div class="row" data-a="shopToggle" data-id="${i.id}"><span class="check">${ic("check")}</span><div class="main"><div class="t">${esc(i.name)}</div></div></div>`).join("") : emptyState("shopping-bag", "Lista vazia.")}
     </div>
-    <div class="col">
-      <div class="col-head">Tarefas <a href="#/tarefas">abrir</a></div>
-      <div class="list">${chores.slice(0, 8).map((c) => `<div class="row" data-a="choreDone" data-id="${c.id}"><span class="check">${ic("check")}</span><div class="main"><div class="t">${esc(c.title)}</div></div></div>`).join("") || `<div class="empty">Nada pendente</div>`}</div>
+    <div class="card home-card desk-only">
+      <div class="card-head"><span>Tarefas · ${chores.length}</span><a href="#/tarefas">abrir</a></div>
+      ${chores.length ? chores.slice(0, 7).map((c) => `<div class="row" data-a="choreDone" data-id="${c.id}"><span class="check">${ic("check")}</span><div class="main"><div class="t">${esc(c.title)}</div><div class="s">${esc([c.assignee ? memberName(c.assignee) : "", c.due ? rel(parseD(c.due)) : ""].filter(Boolean).join(" · "))}</div></div></div>`).join("") : emptyState("circle-check", "Nada pendente.")}
     </div>
-  </div></div>`;
+    <div class="card home-card desk-only">
+      <div class="card-head"><span>Caixinhas</span><a href="#/caixinhas">abrir</a></div>
+      <div class="big" style="font-size:30px;margin:2px 0 8px">${brl0(saved)}</div>
+      ${boxes.slice(0, 4).map((b) => { const v = sum(moves.filter((x) => x.box_id === b.id), (x) => x.amount); const pct = b.goal ? Math.min(100, (v / b.goal) * 100) : 0; return `<div class="mini-box"><div><span>${esc(b.name)}</span><b class="money">${brl0(v)}</b></div>${b.goal ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ""}</div>`; }).join("") || emptyState("piggy-bank", "Nenhuma caixinha ainda.")}
+    </div>
+    ${P.homeNote && note ? `<div class="note-card home-card desk-only" data-a="nav" data-to="#/mural" style="cursor:pointer">
+      <div class="card-head"><span>Mural</span></div>
+      <p>${esc(note.text)}</p><footer><span>${esc(memberName(note.created_by) || "Alguém")}</span></footer></div>` : ""}
+  </div>`;
 };
 globalActions.newtx = () => forms.transaction();globalActions.newtx = () => forms.transaction();
 globalActions.newin = () => forms.transaction({ kind: "income" });
+globalActions.newsecret = () => { go("#/cofre"); setTimeout(() => handlers.add?.(), 400); };
 globalActions.newfixout = () => forms.recurring({ kind: "expense" });
 globalActions.newfixin = () => forms.recurring({ kind: "income" });
 
@@ -899,7 +972,7 @@ routes.casa = async () => {
 
 /* ---------- menu do + ---------- */
 globalActions.plus = () => openSheet(`<h2>Adicionar</h2><div class="sheet-grid">
-  ${[["newtx", "", "minus-circle", "Gasto"], ["newin", "", "plus-circle", "Entrada"], ["quick", "compras", "shopping-bag", "Compra"], ["newfixout", "", "repeat", "Gasto fixo"], ["newfixin", "", "badge-dollar-sign", "Receita fixa"], ["quick", "caixinhas", "piggy-bank", "Caixinha"], ["quick", "tarefas", "list-checks", "Tarefa"], ["quick", "lembretes", "calendar-heart", "Lembrete"], ["quick", "mural", "message-circle-heart", "Recado"]]
+  ${[["newtx", "", "minus-circle", "Gasto"], ["newin", "", "plus-circle", "Entrada"], ["quick", "compras", "shopping-bag", "Compra"], ["newfixout", "", "repeat", "Gasto fixo"], ["newfixin", "", "badge-dollar-sign", "Receita fixa"], ["quick", "caixinhas", "piggy-bank", "Caixinha"], ["quick", "tarefas", "list-checks", "Tarefa"], ["quick", "lembretes", "calendar-heart", "Lembrete"], ["quick", "mural", "message-circle-heart", "Recado"], ["quick", "info", "info", "Informação"], ["newsecret", "", "key-round", "Senha"], ["quick", "desejos", "gift", "Desejo"]]
     .map(([a, m, i, l]) => `<button data-qa="${a}" data-m="${m}">${ic(i)}${l}</button>`).join("")}
   </div>`, (sheet, close) => sheet.addEventListener("click", (e) => {
     const b = e.target.closest("[data-qa]");
@@ -912,6 +985,7 @@ globalActions.plus = () => openSheet(`<h2>Adicionar</h2><div class="sheet-grid">
 /* ---------- finanças ---------- */
 routes.financas = async (tab = "extrato") => {
   const m = state.month;
+  const prevM = new Date(m.getFullYear(), m.getMonth() - 1, 1);
   const from = new Date(Math.min(new Date(m.getFullYear(), m.getMonth() - 5, 1), addDays(today0(), -13)));
   const [txs, recs, moves] = await Promise.all([
     db.list("transactions", (b) => b.gte("date", iso(from)).lte("date", iso(monthEnd(m))).order("date", { ascending: false }).order("created_at", { ascending: false }), `tx-${iso(m)}`),
@@ -919,34 +993,42 @@ routes.financas = async (tab = "extrato") => {
     db.list("savings_moves", (b) => b.select("amount,date"), "moves"),
   ]);
   const s = monthSummary(txs, recs, m);
+  const sp = monthSummary(txs, recs, prevM);
   const isNow = m.getTime() === monthStart(new Date()).getTime();
 
-  handlers.setm = (d) => { state.month = parseD(d.v); refresh(); setTimeout(() => app.querySelector(".day.on")?.scrollIntoView({ inline: "center", block: "nearest" })); };
-  handlers.prev = () => { state.month = new Date(m.getFullYear(), m.getMonth() - 1, 1); refresh(); };
-  handlers.next = () => { state.month = new Date(m.getFullYear(), m.getMonth() + 1, 1); refresh(); };
+  handlers.setm = (d) => { state.month = parseD(d.v); refresh(); };
   handlers.edit = (d) => forms.transaction(txs.find((t) => t.id === d.id));
   handlers.budget = (d) => forms.category(catById(d.id));
 
+  const pctDiff = (a, b) => (b ? Math.round(((a - b) / b) * 100) : null);
+  const delta = (a, b, goodWhenDown = true) => {
+    const d = pctDiff(a, b);
+    if (d === null || !isFinite(d)) return "";
+    const up = d > 0;
+    const good = goodWhenDown ? !up : up;
+    return `<span class="delta ${d === 0 ? "" : good ? "pos" : "neg"}">${d === 0 ? "=" : up ? "▲" : "▼"} ${Math.abs(d)}%</span>`;
+  };
+
   let body = "";
   if (tab === "extrato") {
-    if (!s.mt.length) body = `<div class="list">${empty("Nenhum lançamento nesse mês ainda.")}</div>`;
+    if (!s.mt.length) body = `<div class="list">${emptyState("receipt", "Nenhum lançamento nesse mês ainda.", `<button class="btn" data-a="newtx" style="max-width:220px;margin-top:12px">${ic("plus")} Lançar gasto</button>`)}</div>`;
     else {
       const byDay = {};
       s.mt.forEach((t) => (byDay[t.date] ||= []).push(t));
-      body = Object.entries(byDay).map(([day, list]) => {
+      body = groups(Object.entries(byDay).map(([day, list]) => {
         const d = parseD(day);
         const n = diffDays(d);
         const label = n === 0 ? "Hoje" : n === -1 ? "Ontem" : d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" }).replace(/\./g, "");
-        return `<div class="section-title">${label}</div>
-        <div class="list">${list.map((t) => {
+        const tot = sum(list, (t) => (t.kind === "income" ? t.amount : -t.amount));
+        return group(label, `<div class="list">${list.map((t) => {
           const c = catById(t.category_id);
           return `<div class="row" data-a="edit" data-id="${t.id}">
-            <div class="ic ${t.kind === "income" ? "acc" : ""}">${ic(c?.icon || "tag")}</div>
-            <div class="main"><div class="t">${esc(t.description)}</div></div>
+            <div class="ic">${ic(c?.icon || "tag")}</div>
+            <div class="main"><div class="t">${esc(t.description)}</div><div class="s">${esc(c?.name || "Sem categoria")}${t.recurring_id ? " · fixo" : ""}</div></div>
             <div class="v ${t.kind === "income" ? "pos" : ""}">${t.kind === "income" ? "+" : "−"} ${brl(t.amount)}</div>
           </div>`;
-        }).join("")}</div>`;
-      }).join("");
+        }).join("")}</div>`, `<span class="money">${brl(tot)}</span>`);
+      }));
     }
   }
 
@@ -955,19 +1037,19 @@ routes.financas = async (tab = "extrato") => {
     const spent = (id) => sum(s.mt.filter((t) => t.kind === "expense" && t.category_id === id), (t) => t.amount);
     const totalBudget = sum(exp, (c) => c.budget);
     const totalSpent = sum(exp.filter((c) => c.budget), (c) => spent(c.id));
-    body = `${totalBudget ? `<div class="card wide" style="margin-bottom:10px">
-        <div class="muted" style="font-size:13px">Orçamento do mês</div>
-        <div style="font-size:24px;font-weight:500;margin-top:4px">${brl(totalSpent)} <span class="muted" style="font-size:15px">de ${brl(totalBudget)}</span></div>
+    body = `${totalBudget ? `<div class="card" style="margin-bottom:10px">
+        <div class="lbl">Orçamento do mês</div>
+        <div class="val" style="font-size:22px">${brl0(totalSpent)} <span class="muted" style="font-size:15px">de ${brl0(totalBudget)}</span></div>
         <div class="bar"><i class="${totalSpent > totalBudget ? "over" : ""}" style="width:${Math.min(100, (totalSpent / totalBudget) * 100)}%"></i></div>
-        ${isNow ? `<div class="muted" style="font-size:12px;margin-top:8px">Ainda dá pra gastar ${brl(Math.max(0, totalBudget - totalSpent))} nas categorias com limite.</div>` : ""}
-      </div>` : `<div class="card wide" style="margin-bottom:10px"><div class="muted" style="font-size:14px">Toque numa categoria pra definir quanto vocês querem gastar nela por mês.</div></div>`}
+        ${isNow ? `<div class="s muted" style="font-size:12.5px;margin-top:8px">Ainda dá pra gastar ${brl0(Math.max(0, totalBudget - totalSpent))} nas categorias com limite.</div>` : ""}
+      </div>` : `<div class="card" style="margin-bottom:10px"><div class="muted" style="font-size:14px">Toque numa categoria pra definir um limite por mês.</div></div>`}
       <div class="list">${exp.map((c) => {
-        const sp = spent(c.id);
-        const pct = c.budget ? (sp / c.budget) * 100 : 0;
-        return `<div class="row" data-a="budget" data-id="${c.id}" style="align-items:flex-start">
+        const spv = spent(c.id);
+        const pct = c.budget ? (spv / c.budget) * 100 : 0;
+        return `<div class="row" data-a="budget" data-id="${c.id}">
           <div class="ic">${ic(c.icon)}</div>
           <div class="main"><div class="t">${esc(c.name)}</div>
-            <div class="s">${c.budget ? `${brl(sp)} de ${brl(c.budget)}` : `${brl(sp)} · sem limite`}</div>
+            <div class="s">${c.budget ? `${brl0(spv)} de ${brl0(c.budget)}` : `${brl0(spv)} · sem limite`}</div>
             ${c.budget ? `<div class="bar"><i class="${pct > 100 ? "over" : ""}" style="width:${Math.min(100, pct)}%"></i></div>` : ""}
           </div>
           <div class="v ${pct > 100 ? "neg" : pct > 85 ? "warn" : ""}">${c.budget ? Math.round(pct) + "%" : ""}</div>
@@ -975,25 +1057,20 @@ routes.financas = async (tab = "extrato") => {
       }).join("")}</div>`;
   }
 
-  if (tab === "resumo") {
-    // semana
-    const t0 = today0();
-    const wk = txs.filter((t) => t.kind === "expense" && !t.recurring_id && parseD(t.date) > addDays(t0, -7) && parseD(t.date) <= t0);
-    const prevWk = txs.filter((t) => t.kind === "expense" && !t.recurring_id && parseD(t.date) > addDays(t0, -14) && parseD(t.date) <= addDays(t0, -7));
-    const wkTotal = sum(wk, (t) => t.amount);
-    const prevTotal = sum(prevWk, (t) => t.amount);
-    const byCat = {};
-    wk.forEach((t) => (byCat[t.category_id] = (byCat[t.category_id] || 0) + Number(t.amount)));
-    const topCat = Object.entries(byCat).sort((a, b) => b[1] - a[1])[0];
-    const biggest = [...wk].sort((a, b) => b.amount - a.amount)[0];
-    const change = prevTotal ? ((wkTotal - prevTotal) / prevTotal) * 100 : null;
-
-    // categorias do mês
-    const monthCats = {};
-    s.mt.filter((t) => t.kind === "expense").forEach((t) => (monthCats[t.category_id] = (monthCats[t.category_id] || 0) + Number(t.amount)));
-    const catRows = Object.entries(monthCats).sort((a, b) => b[1] - a[1]);
-
-    // 6 meses
+  if (tab === "balanco") {
+    const exp = s.mt.filter((t) => t.kind === "expense");
+    const prevExp = sp.mt.filter((t) => t.kind === "expense");
+    const fixed = sum(exp.filter((t) => t.recurring_id), (t) => t.amount);
+    const variable = s.expense - fixed;
+    const byCat = (list) => { const o = {}; list.forEach((t) => (o[t.category_id || "x"] = (o[t.category_id || "x"] || 0) + Number(t.amount))); return o; };
+    const cm = byCat(exp), cp = byCat(prevExp);
+    const catRows = Object.entries(cm).sort((a, b) => b[1] - a[1]);
+    const top = [...exp].sort((a, b) => b.amount - a.amount).slice(0, 5);
+    const dim = daysIn(m.getFullYear(), m.getMonth());
+    const perDay = Array.from({ length: dim }, (_, i) => sum(exp.filter((t) => parseD(t.date).getDate() === i + 1 && !t.recurring_id), (t) => t.amount));
+    const maxDay = Math.max(1, ...perDay);
+    const byWho = {};
+    exp.forEach((t) => (byWho[t.created_by || "?"] = (byWho[t.created_by || "?"] || 0) + Number(t.amount)));
     const months = [];
     for (let i = 5; i >= 0; i--) {
       const mm = new Date(m.getFullYear(), m.getMonth() - i, 1);
@@ -1001,64 +1078,58 @@ routes.financas = async (tab = "extrato") => {
       months.push({ mm, inc: sum(mt.filter((t) => t.kind === "income"), (t) => t.amount), out: sum(mt.filter((t) => t.kind === "expense"), (t) => t.amount) });
     }
     const maxV = Math.max(1, ...months.map((x) => Math.max(x.inc, x.out)));
-    const saved = sum(moves, (x) => x.amount);
+    const savedMonth = sum(moves.filter((x) => inMonth(x.date, m)), (x) => x.amount);
+    const rate = s.income > 0 ? Math.round(((s.income - s.expense) / s.income) * 100) : null;
 
-    body = `
-    <div class="card wide" style="margin-bottom:10px">
-      <div class="muted" style="font-size:13px">Gastos do dia a dia, últimos 7 dias</div>
-      <div style="font-size:28px;font-weight:500;margin:4px 0 10px">${brl(wkTotal)} <span style="font-size:13px" class="${change === null ? "muted" : change > 0 ? "neg" : "pos"}">${change === null ? "" : `${change > 0 ? "▲" : "▼"} ${Math.abs(Math.round(change))}% vs semana anterior`}</span></div>
-      ${wk.length ? `<div class="muted" style="font-size:14px;line-height:1.5">
-        ${topCat ? `${Math.round((topCat[1] / wkTotal) * 100)}% foi em <b style="color:var(--fg);font-weight:600">${esc(catById(topCat[0])?.name || "Sem categoria")}</b>.` : ""}
-        ${biggest ? ` Maior gasto: <b style="color:var(--fg);font-weight:600">${esc(biggest.description)}</b> (${brl(biggest.amount)}).` : ""}
-      </div>` : `<div class="muted" style="font-size:14px">Nenhum gasto nos últimos 7 dias.</div>`}
-    </div>
-
-    <div class="card wide" style="margin-bottom:10px">
-      <div class="muted" style="font-size:13px;margin-bottom:14px">Entrou × saiu, 6 meses</div>
-      <div style="display:flex;align-items:flex-end;gap:10px;height:120px">
-        ${months.map((x) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end">
-          <div style="display:flex;gap:3px;align-items:flex-end;height:100%">
-            <div title="Entrou ${brl(x.inc)}" style="width:9px;border-radius:5px;background:var(--accent);height:${Math.max(2, (x.inc / maxV) * 100)}%"></div>
-            <div title="Saiu ${brl(x.out)}" style="width:9px;border-radius:5px;background:#6f7075;height:${Math.max(2, (x.out / maxV) * 100)}%"></div>
-          </div>
-          <div style="font-size:11px" class="muted">${monthName(x.mm, { month: "short" }).replace(".", "")}</div>
-        </div>`).join("")}
-      </div>
-      <div style="display:flex;gap:16px;margin-top:12px;font-size:12px" class="muted">
-        <span><i style="display:inline-block;width:8px;height:8px;border-radius:4px;background:var(--accent);margin-right:6px"></i>Entrou</span>
-        <span><i style="display:inline-block;width:8px;height:8px;border-radius:4px;background:#6f7075;margin-right:6px"></i>Saiu</span>
-        <span style="margin-left:auto">Caixinhas: <b style="color:var(--fg);font-weight:600">${brl0(saved)}</b></span>
-      </div>
-    </div>
-
-    <div class="section-title">Pra onde foi o dinheiro em ${monthName(m)}</div>
-    <div class="list">${catRows.length ? catRows.map(([id, v]) => {
-      const c = catById(id);
-      return `<div class="row" style="align-items:flex-start"><div class="ic">${ic(c?.icon || "tag")}</div>
-        <div class="main"><div class="t">${esc(c?.name || "Sem categoria")}</div><div class="bar"><i style="width:${(v / s.expense) * 100}%"></i></div></div>
-        <div class="v">${brl(v)}<small>${Math.round((v / s.expense) * 100)}%</small></div></div>`;
-    }).join("") : empty("Sem gastos nesse mês.")}</div>`;
+    body = groups([
+      group("Resumo do mês", `<div class="card bal">
+        <div class="bal-row"><span>Entrou</span><b class="money">${brl0(s.income)}</b>${delta(s.income, sp.income, false)}</div>
+        <div class="bal-row"><span>Saiu</span><b class="money">${brl0(s.expense)}</b>${delta(s.expense, sp.expense)}</div>
+        <div class="bal-row total"><span>Sobrou</span><b class="money ${s.balance < 0 ? "neg" : ""}">${brl0(s.balance)}</b>${rate === null ? "" : `<span class="delta">${rate}% da renda</span>`}</div>
+        <div class="bal-row"><span>Guardado nas caixinhas</span><b class="money">${brl0(savedMonth)}</b><span></span></div>
+        <div class="split" title="Fixos × do dia a dia"><i style="width:${s.expense ? (fixed / s.expense) * 100 : 0}%"></i></div>
+        <div class="split-legend"><span><i class="k1"></i>Fixos <b class="money">${brl0(fixed)}</b></span><span><i class="k2"></i>Dia a dia <b class="money">${brl0(variable)}</b></span></div>
+      </div>`),
+      group("Por categoria", `<div class="list">${catRows.length ? catRows.map(([id, v]) => {
+        const c = catById(id);
+        const p = s.expense ? (v / s.expense) * 100 : 0;
+        return `<div class="row"><div class="ic">${ic(c?.icon || "tag")}</div>
+          <div class="main"><div class="t">${esc(c?.name || "Sem categoria")}</div><div class="bar"><i style="width:${p}%"></i></div></div>
+          <div class="v">${brl0(v)}<small>${Math.round(p)}% ${delta(v, cp[id] || 0)}</small></div></div>`;
+      }).join("") : emptyState("chart-pie", "Sem gastos nesse mês.")}</div>`),
+      group("Maiores gastos", `<div class="list">${top.length ? top.map((t) => `<div class="row" data-a="edit" data-id="${t.id}"><div class="ic">${ic(catById(t.category_id)?.icon || "tag")}</div><div class="main"><div class="t">${esc(t.description)}</div><div class="s">${shortDate(parseD(t.date))}</div></div><div class="v">${brl(t.amount)}</div></div>`).join("") : emptyState("receipt", "Nada por aqui.")}</div>`),
+      group("Gasto do dia a dia por dia", `<div class="card"><div class="daybars">${perDay.map((v, i) => `<i title="Dia ${i + 1}: ${brl(v)}" style="height:${Math.max(2, (v / maxDay) * 100)}%" class="${isNow && i + 1 === today0().getDate() ? "today" : ""}"></i>`).join("")}</div>
+        <div class="split-legend"><span>Dia 1</span><span>Dia ${dim}</span></div></div>`),
+      group("Entrou × saiu, 6 meses", `<div class="card"><div class="mbars">${months.map((x) => `<div><div class="pair"><i class="k1" title="Entrou ${brl(x.inc)}" style="height:${Math.max(2, (x.inc / maxV) * 100)}%"></i><i class="k2" title="Saiu ${brl(x.out)}" style="height:${Math.max(2, (x.out / maxV) * 100)}%"></i></div><small>${monthName(x.mm, { month: "short" }).replace(".", "")}</small></div>`).join("")}</div>
+        <div class="split-legend"><span><i class="k1"></i>Entrou</span><span><i class="k2"></i>Saiu</span></div></div>`),
+      state.members.length > 1 ? group("Quem lançou", `<div class="list">${Object.entries(byWho).map(([uid, v]) => `<div class="row"><div class="ic">${ic("user-round")}</div><div class="main"><div class="t">${esc(memberName(uid) || "—")}</div></div><div class="v">${brl0(v)}</div></div>`).join("")}</div>`) : "",
+    ]);
   }
 
   return `${topbar("Dinheiro")}
   ${moneyTabs("financas")}
-  <div class="days">${[-4, -3, -2, -1, 0, 1].map((k) => {
-    const mm = new Date(m.getFullYear(), m.getMonth() + k, 1);
-    return `<button class="day ${k === 0 ? "on" : ""}" data-a="setm" data-v="${iso(mm)}"><b>${monthName(mm, { month: "short" }).replace(".", "").replace(/^./, (c) => c.toUpperCase())}</b><small>${mm.getFullYear()}</small></button>`;
-  }).join("")}</div>
-  <div class="sheet-card">
-    <div class="sec"><div class="lbl">Saldo do mês</div><div class="big">${brl0(s.balance)}</div></div>
-    <div class="sec two">
-      <div><div class="lbl">Entrou</div><div class="val">${brl0(s.income)}</div></div>
-      <div><div class="lbl">Saiu</div><div class="val">${brl0(s.expense)}</div></div>
-    </div>
-    <div class="sec row-sec"><span class="lbl" style="margin:0">Previsão do fim do mês</span><span class="right val money">${brl0(s.forecast)}</span></div>
+  <div class="layout">
+    <aside class="lcol">
+      <div class="days">${[-4, -3, -2, -1, 0, 1].map((k) => {
+        const mm = new Date(m.getFullYear(), m.getMonth() + k, 1);
+        return `<button class="day ${k === 0 ? "on" : ""}" data-a="setm" data-v="${iso(mm)}"><b>${monthName(mm, { month: "short" }).replace(".", "").replace(/^./, (c) => c.toUpperCase())}</b><small>${mm.getFullYear()}</small></button>`;
+      }).join("")}</div>
+      <div class="sheet-card">
+        <div class="sec"><div class="lbl">Saldo de ${monthName(m)}</div><div class="big">${brl0(s.balance)}</div></div>
+        <div class="sec two">
+          <div><div class="lbl">Entrou</div><div class="val">${brl0(s.income)}</div></div>
+          <div><div class="lbl">Saiu</div><div class="val">${brl0(s.expense)}</div></div>
+        </div>
+        ${isNow ? `<div class="sec row-sec"><span class="lbl" style="margin:0">Previsão do fim do mês</span><span class="right val money">${brl0(s.forecast)}</span></div>` : ""}
+      </div>
+    </aside>
+    <section class="rcol">
+      ${chips([["extrato", "Extrato"], ["balanco", "Balanço"], ["orcamento", "Orçamento"]], tab)}
+      ${body}
+    </section>
   </div>
-  ${chips([["extrato", "Extrato"], ["orcamento", "Orçamento"], ["resumo", "Resumo"]], tab)}
-  ${body}
   ${cta("Novo lançamento", "newtx")}`;
 };
-
 /* ---------- fixos ---------- */
 routes.fixos = async (tab = "gastos") => {
   const m = monthStart(new Date());
@@ -1110,7 +1181,8 @@ routes.fixos = async (tab = "gastos") => {
     const c = catById(r.category_id);
     return `<div class="row ${r.active ? "" : "done"}" data-a="edit" data-id="${r.id}">
       <button class="check ${paid ? "on" : ""}" data-a="pay" data-id="${r.id}" aria-label="${paid ? "Desmarcar" : "Marcar como pago"}">${ic("check")}</button>
-      <div class="main"><div class="t">${esc(r.name)}</div><div class="s ${late ? "neg" : ""}">${late ? "atrasado" : "dia " + r.day}</div></div>
+      <div class="ic">${ic(c?.icon || (r.kind === "income" ? "wallet" : "receipt"))}</div>
+      <div class="main"><div class="t">${esc(r.name)}</div><div class="s ${late ? "neg" : ""}">${late ? "atrasado · dia " + r.day : paid ? (r.kind === "income" ? "recebido" : "pago") + " · dia " + r.day : "dia " + r.day}</div></div>
       ${r.url ? `<button class="icon-btn" data-a="open" data-url="${esc(r.url)}" aria-label="Abrir link">${ic("external-link")}</button>` : ""}
       <div class="v ${r.kind === "income" ? "pos" : ""}">${brl(r.amount)}${r.is_subscription ? `<small>${brl0(r.amount * 12)}/ano</small>` : ""}</div>
     </div>`;
@@ -1123,19 +1195,22 @@ routes.fixos = async (tab = "gastos") => {
 
   return `${topbar("Dinheiro")}
   ${moneyTabs("fixos")}
+  <div class="layout"><aside class="lcol">
   <div class="hero-card">
     <div class="hc-top"><span>${tab === "assinaturas" ? "Assinaturas por ano" : "Sobra fixa por mês"}</span></div>
     <div class="big">${tab === "assinaturas" ? brl0(sum(subs, (r) => r.amount) * 12) : brl0(inTotal - outTotal)}</div>
     <div class="hc-pills"><span>${ic("arrow-down-left")} ${brl0(inTotal)}</span><span>${ic("arrow-up-right")} ${brl0(outTotal)}</span></div>
   </div>
+  </aside><section class="rcol">
   ${chips([["gastos", "Gastos"], ["receitas", "Receitas"], ["assinaturas", "Assinaturas"]], tab)}
-  <div class="list">${list.length ? list.map(row).join("") : empty(tab === "receitas" ? "Cadastre salário e outras entradas que caem todo mês." : tab === "assinaturas" ? "Marque “É uma assinatura” num gasto fixo pra ele aparecer aqui." : "Cadastre aluguel, luz, internet, condomínio…")}</div>
+  <div class="list">${list.length ? list.map(row).join("") : emptyState(tab === "receitas" ? "wallet" : tab === "assinaturas" ? "tv" : "receipt", tab === "receitas" ? "Cadastre salário e outras entradas que caem todo mês." : tab === "assinaturas" ? "Marque “É uma assinatura” num gasto fixo (Netflix, Spotify…)." : "Cadastre aluguel, luz, internet, condomínio…")}</div>
   <button class="add-row" data-a="${tab === "receitas" ? "newfixin" : "newfixout"}">${tab === "receitas" ? "Nova receita fixa" : "Novo gasto fixo"} ${ic("plus")}</button>
   ${tab !== "receitas" && suggestions.length ? `<div class="section-title">Parece assinatura</div>
   <div class="list">${suggestions.map((t) => `<div class="row" data-a="suggest" data-id="${t.id}">
     <div class="ic acc">${ic("sparkles")}</div>
     <div class="main"><div class="t">${esc(t.description)}</div></div>
     <div class="v">${brl(t.amount)}</div></div>`).join("")}</div>` : ""}
+  </section></div>
   ${cta(tab === "receitas" ? "Nova receita fixa" : "Novo gasto fixo", "newrec")}`;
 };
 globalActions.newrec = () => forms.recurring({ kind: routeParts().args[0] === "receitas" ? "income" : "expense", is_subscription: routeParts().args[0] === "assinaturas" });
@@ -1169,10 +1244,12 @@ routes.caixinhas = async () => {
 
   return `${topbar("Dinheiro")}
   ${moneyTabs("caixinhas")}
+  <div class="layout"><aside class="lcol">
   <div class="hero-card">
-    <div class="hc-top"><span>Guardado</span></div>
+    <div class="hc-top"><span>Guardado no total</span></div>
     <div class="big">${brl0(total)}</div>
-  </div>
+    <div class="hc-foot"><span>${boxes.length} caixinha${boxes.length === 1 ? "" : "s"}</span></div>
+  </div></aside><section class="rcol"><div class="groups boxes">
   ${boxes.length ? boxes.map((b) => {
     const v = bal(b.id);
     const pct = b.goal ? Math.min(100, (v / b.goal) * 100) : 0;
@@ -1185,7 +1262,8 @@ routes.caixinhas = async () => {
         <button data-a="edit" data-id="${b.id}" aria-label="Editar" style="margin-left:auto;background:none">${ic("pencil")}</button>
       </div>
     </div>`;
-  }).join("") : `<div class="card">${empty("Nenhuma caixinha ainda")}</div>`}
+  }).join("") : `<div class="card">${emptyState("piggy-bank", "Crie uma caixinha pra reserva, viagem, carro…", `<button class="btn" data-a="quick" data-m="caixinhas" style="max-width:220px;margin-top:12px">${ic("plus")} Nova caixinha</button>`)}</div>`}
+  </div></section></div>
   ${cta("Nova caixinha", "quick", "plus", "caixinhas")}`;
 };
 
@@ -1224,7 +1302,7 @@ routes.compras = async (tab = "lista") => {
       <div class="main"><div class="t">${esc(p.name)}</div><div class="s ${cls[p.status]}">${label[p.status]}</div></div>
       ${p.status !== "ok" ? `<button class="icon-btn" data-a="tolist" data-id="${p.id}" aria-label="Pôr na lista">${ic("shopping-cart")}</button>` : ""}
       <button class="small-chip ${p.status === "ok" ? "" : "on"}" data-a="cycle" data-id="${p.id}" style="min-width:84px">${label[p.status]}</button>
-    </div>`).join("") : empty("Cadastre o que costuma ter em casa. Toque no status quando estiver acabando.")}</div>`;
+    </div>`).join("") : emptyState("package", "Cadastre o que costuma ter em casa e marque quando estiver acabando.")}</div>`;
   }
 
   const items = await db.list("shopping_items", (b) => b.order("created_at"), "shopping");
@@ -1257,17 +1335,17 @@ routes.compras = async (tab = "lista") => {
   return `${topbar("Compras")}
   ${chips([["lista", `Lista${pending ? " · " + pending : ""}`], ["despensa", "Despensa"]], tab)}
   <form data-submit="qadd" class="quick-add"><input id="qname" name="qname" class="input" placeholder="Leite, ovos, pão…" autocomplete="off"><button class="round" aria-label="Adicionar">${ic("plus")}</button></form>
-  ${items.length ? sections.map((sec) => `<div class="section-title">${esc(sec)}</div><div class="list">${items.filter((i) => i.section === sec).map((i) => `
+  ${items.length ? groups(sections.map((sec) => group(esc(sec), `<div class="list">${items.filter((i) => i.section === sec).map((i) => `
     <div class="row ${i.checked ? "done" : ""}" data-row="${i.id}" data-a="toggle" data-id="${i.id}">
       <span class="check ${i.checked ? "on" : ""}">${ic("check")}</span>
       <div class="main"><div class="t">${esc(i.name)}</div>${i.qty ? `<div class="s">${esc(i.qty)}</div>` : ""}</div>
       <button class="icon-btn" data-a="edit" data-id="${i.id}" aria-label="Editar">${ic("pencil")}</button>
-    </div>`).join("")}</div>`).join("") : `<div class="list" style="margin-top:12px">${empty("Lista vazia. Bora encher a geladeira?")}</div>`}
+    </div>`).join("")}</div>`))) : `<div class="list" style="margin-top:12px">${emptyState("shopping-bag", "Lista vazia. Bora encher a geladeira?")}</div>`}
   ${items.some((i) => i.checked) ? cta("Limpar comprados", "clear", "trash-2") : ""}`;
 };
 
 /* ---------- tarefas ---------- */
-routes.tarefas = async () => {
+routes.tarefas = async (filter = "todas") => {
   const items = await db.list("chores", (b) => b.order("due", { ascending: true, nullsFirst: false }).order("created_at"), "chores");
   handlers.edit = (d) => forms.chore(items.find((x) => x.id === d.id));
   handlers.done = async (d) => {
@@ -1278,48 +1356,68 @@ routes.tarefas = async () => {
     } else await db.set("chores", c.id, { done: !c.done });
     refresh();
   };
+  handlers.qchore = async (f) => {
+    const title = f.qtitle.value.trim();
+    if (!title) return;
+    await db.add("chores", { title, due: f.qwhen.value === "hoje" ? iso(today0()) : f.qwhen.value === "amanha" ? iso(addDays(today0(), 1)) : null, assignee: filter === "minhas" ? state.user.id : null });
+    refresh();
+  };
+  handlers.showdone = () => { routes.tarefas.showDone = !routes.tarefas.showDone; refresh(); };
   const t0 = today0();
   const rep = { none: "", daily: "todo dia", weekly: "toda semana", monthly: "todo mês" };
+  const mine = (c) => filter !== "minhas" || !c.assignee || c.assignee === state.user.id;
+  const open = items.filter((c) => !c.done && mine(c));
+  const done = items.filter((c) => c.done && mine(c)).slice(-12).reverse();
   const cols = [
-    ["Pra hoje", items.filter((c) => !c.done && c.due && parseD(c.due) <= t0)],
-    ["Próximos dias", items.filter((c) => !c.done && c.due && parseD(c.due) > t0)],
-    ["Sem data", items.filter((c) => !c.done && !c.due)],
-    ["Feitas", items.filter((c) => c.done).slice(-12).reverse()],
+    ["hoje", "Pra hoje", open.filter((c) => c.due && parseD(c.due) <= t0), "sun"],
+    ["prox", "Próximos dias", open.filter((c) => c.due && parseD(c.due) > t0), "calendar"],
+    ["semdata", "Quando der", open.filter((c) => !c.due), "inbox"],
+    ["feitas", "Feitas", done, "circle-check"],
   ];
   const card = (c) => {
     const d = c.due ? parseD(c.due) : null;
     const late = d && !c.done && d < t0;
-    const bits = [c.assignee ? memberName(c.assignee) : "Qualquer um", d ? rel(d) : "", rep[c.repeat]].filter(Boolean);
+    const bits = [c.assignee ? memberName(c.assignee) : "", d && !c.done ? (late ? "atrasada · " : "") + rel(d) : "", rep[c.repeat]].filter(Boolean);
     return `<div class="kcard ${c.done ? "done" : ""}" data-a="edit" data-id="${c.id}" draggable="true" data-drag="${c.id}">
       <button class="check ${c.done ? "on" : ""}" data-a="done" data-id="${c.id}" aria-label="Concluir">${ic("check")}</button>
-      <div style="min-width:0"><div class="t">${esc(c.title)}</div><div class="s ${late ? "warn" : ""}">${esc(bits.join(" · "))}</div></div>
+      <div style="min-width:0;flex:1"><div class="t">${esc(c.title)}</div>${bits.length ? `<div class="s ${late ? "neg" : ""}">${esc(bits.join(" · "))}</div>` : ""}</div>
+      ${c.repeat !== "none" ? `<span class="muted" title="Repete">${ic("repeat")}</span>` : ""}
     </div>`;
   };
-  // arrastar entre colunas (PC): hoje / próximos / sem data / feitas
   setTimeout(() => {
-    app.querySelectorAll("[data-drag]").forEach((el) => el.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/plain", el.dataset.drag); el.style.opacity = ".5"; }));
-    app.querySelectorAll("[data-drag]").forEach((el) => el.addEventListener("dragend", () => (el.style.opacity = "")));
+    app.querySelectorAll("[data-drag]").forEach((el) => {
+      el.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/plain", el.dataset.drag); el.style.opacity = ".5"; });
+      el.addEventListener("dragend", () => (el.style.opacity = ""));
+    });
     app.querySelectorAll("[data-col]").forEach((col) => {
       col.addEventListener("dragover", (e) => { e.preventDefault(); col.classList.add("over"); });
       col.addEventListener("dragleave", () => col.classList.remove("over"));
       col.addEventListener("drop", async (e) => {
         e.preventDefault(); col.classList.remove("over");
         const id = e.dataTransfer.getData("text/plain");
-        const i = +col.dataset.col;
-        const patch = [{ done: false, due: iso(t0) }, { done: false, due: iso(addDays(t0, 1)) }, { done: false, due: null }, { done: true }][i];
-        await db.set("chores", id, patch);
-        refresh();
+        const patch = { hoje: { done: false, due: iso(t0) }, prox: { done: false, due: iso(addDays(t0, 1)) }, semdata: { done: false, due: null }, feitas: { done: true } }[col.dataset.col];
+        await db.set("chores", id, patch); refresh();
       });
     });
   });
+  const showDone = routes.tarefas.showDone || window.innerWidth >= 980;
   return `${topbar("Tarefas")}
-  <div class="kanban">${cols.map(([title, list], i) => (list.length || i < 2 || window.innerWidth >= 980) ? `<div data-col="${i}">
-    <div class="kcol-head">${title} <span class="badge">${list.length}</span></div>
-    ${list.length ? list.map(card).join("") : `<div class="kempty">${i === 0 ? "Nada pra hoje ✨" : "Vazio"}</div>`}
-  </div>` : "").join("")}</div>
+  <form data-submit="qchore" class="quick-add">
+    <input id="qtitle" name="qtitle" class="input" placeholder="Nova tarefa…" autocomplete="off">
+    <select name="qwhen" class="input when-sel" aria-label="Quando"><option value="">Quando der</option><option value="hoje">Hoje</option><option value="amanha">Amanhã</option></select>
+    <button class="round" aria-label="Adicionar">${ic("plus")}</button>
+  </form>
+  ${state.members.length > 1 ? `<div class="chips">${[["todas", "Todas"], ["minhas", "Minhas"]].map(([v, l]) => `<button class="chip ${filter === v ? "on" : ""}" data-a="tab" data-v="${v}">${l}</button>`).join("")}</div>` : ""}
+  <div class="kanban">${cols.map(([k, title, list, icon]) => {
+    if (k === "feitas" && !showDone) return `<div data-col="feitas"><button class="add-row" data-a="showdone">${ic("circle-check")} Ver feitas (${list.length})</button></div>`;
+    if (!list.length && k !== "hoje" && window.innerWidth < 980) return "";
+    return `<div data-col="${k}">
+      <div class="kcol-head">${ic(icon)} ${title} <span class="badge">${list.length}</span></div>
+      ${list.length ? list.map(card).join("") : `<div class="kempty">${k === "hoje" ? "Nada pra hoje ✨" : "Vazio"}</div>`}
+    </div>`;
+  }).join("")}</div>
   ${cta("Nova tarefa", "quick", "plus", "tarefas")}`;
 };
-
 /* ---------- lembretes ---------- */
 routes.lembretes = async (tab = "todos") => {
   const items = await db.list("reminders", (b) => b, "reminders");
@@ -1343,7 +1441,7 @@ routes.lembretes = async (tab = "todos") => {
       <div class="main"><div class="t">${esc(r.title)}</div><div class="s">${shortDate(r.next)}${rep[r.repeat] ? " · " + rep[r.repeat] : ""}${years > 0 ? ` · ${years} ano${years > 1 ? "s" : ""}` : ""}${r.notes ? " · " + esc(r.notes) : ""}</div></div>
       <div class="v ${n >= 0 && n <= 7 ? "pos" : "muted"}" style="font-size:13px">${past ? "passou" : rel(r.next)}</div>
     </div>`;
-  }).join("") : empty("Aniversários, IPVA, revisão do carro, vacina do pet, regar as plantas…")}</div>
+  }).join("") : emptyState("calendar-heart", "Aniversários, IPVA, revisão do carro, vacina do pet…")}</div>
   ${cta("Novo lembrete", "quick", "plus", "lembretes")}`;
 };
 
@@ -1372,7 +1470,7 @@ routes.mural = async () => {
     <p>${esc(n.text)}</p>
     <footer><span>${esc(memberName(n.created_by) || "Alguém")} · ${new Date(n.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).replace(".", "")}</span>
     <button class="icon-btn" data-a="del" data-id="${n.id}" aria-label="Apagar" style="width:28px;height:28px">${ic("trash-2")}</button></footer>
-  </div>`).join("") : `<div class="list">${empty("Nenhum recado ainda.")}</div>`}`;
+  </div>`).join("") : `<div class="list">${emptyState("message-circle-heart", "Nenhum recado ainda.")}</div>`}`;
 };
 
 /* ---------- desejos ---------- */
@@ -1390,7 +1488,7 @@ routes.desejos = async (tab = "quero") => {
     <div class="main"><div class="t">${esc(w.title)}</div><div class="s">${esc(memberName(w.created_by))}</div></div>
     ${w.url ? `<button class="icon-btn" data-a="open" data-url="${esc(w.url)}" aria-label="Abrir link">${ic("external-link")}</button>` : ""}
     <div class="v">${w.price ? brl(w.price) : ""}</div>
-  </div>`).join("") : empty("Coloca aqui o que vocês querem comprar, com link e preço.")}</div>
+  </div>`).join("") : emptyState("gift", "O que vocês querem comprar, com link e preço.")}</div>
   ${cta("Novo desejo", "quick", "plus", "desejos")}`;
 };
 
@@ -1409,7 +1507,7 @@ routes.juntos = async (tab = "todos") => {
     <button class="check ${b.done ? "on" : ""}" data-a="done" data-id="${b.id}" aria-label="Feito">${ic("check")}</button>
     <div class="main"><div class="t">${esc(b.title)}</div><div class="s">${BUCKET_KINDS[b.kind]?.l}</div></div>
     <span class="muted" style="font-size:18px">${ic(BUCKET_KINDS[b.kind]?.i || "sparkles")}</span>
-  </div>`).join("") : empty("Restaurantes pra conhecer, filmes, viagens, passeios…")}</div>
+  </div>`).join("") : emptyState("heart-handshake", "Restaurantes, filmes, viagens, passeios…")}</div>
   ${cta("Adicionar", "quick", "plus", "juntos")}`;
 };
 
@@ -1417,7 +1515,7 @@ routes.juntos = async (tab = "todos") => {
 routes.info = async () => {
   const items = await db.list("info_items", (b) => b.order("created_at"), "info");
   handlers.edit = (d) => forms.info(items.find((x) => x.id === d.id));
-  handlers.preset = (d) => forms.info({ section: d.section, label: d.label });
+  handlers.preset = (d) => forms.info({ section: d.section, label: d.label, icon: d.icon });
   handlers.qr = (d) => {
     const it = items.find((x) => x.id === d.id);
     const e = (s) => s.replace(/([\\;,:"])/g, "\\$1");
@@ -1429,21 +1527,20 @@ routes.info = async () => {
       <p class="center secret" style="font-size:18px">${esc(it.value)}</p>`);
   };
   const sections = INFO_SECTIONS.filter((s) => items.some((i) => i.section === s));
-  const presets = [["Casa", "CEP"], ["Casa", "Endereço completo"], ["Wi-Fi", "Nome da rede"], ["Casa", "Código do portão"], ["Contatos", "Portaria"], ["Carro", "Placa e Renavam"]];
+  const presets = [["Casa", "CEP", "map-pin"], ["Casa", "Endereço completo", "house"], ["Wi-Fi", "Nome da rede", "wifi"], ["Casa", "Código do portão", "key-round"], ["Contatos", "Portaria", "phone"], ["Carro", "Placa e Renavam", "car"]];
   return `${topbar("Informações")}
-  ${items.length ? sections.map((sec) => `<div class="section-title">${esc(sec)}</div><div class="list">${items.filter((i) => i.section === sec).map((i) => `
-    <div class="row" data-a="copy" data-text="${esc(i.value)}">
-      <div class="main"><div class="s" style="margin:0 0 2px">${esc(i.label)}</div><div class="t" style="white-space:pre-wrap">${esc(i.value)}</div></div>
+  ${items.length ? groups(sections.map((sec) => group(esc(sec), `<div class="list">${items.filter((i) => i.section === sec).map((i) => `
+    <div class="row" data-a="copy" data-text="${esc(i.value)}" title="Toque pra copiar">
+      <div class="ic">${ic(i.icon || "info")}</div>
+      <div class="main"><div class="s">${esc(i.label)}</div><div class="t" style="white-space:pre-wrap">${esc(i.value)}</div></div>
       ${sec === "Wi-Fi" ? `<button class="icon-btn" data-a="qr" data-id="${i.id}" aria-label="QR code">${ic("qr-code")}</button>` : ""}
       <button class="icon-btn" data-a="edit" data-id="${i.id}" aria-label="Editar">${ic("pencil")}</button>
-    </div>`).join("")}</div>`).join("") + "" : `
-    <p class="muted" style="margin:0 4px 14px;font-size:14px">Tudo que vocês vivem procurando. Comece por aqui:</p>
-    <div class="list">${presets.map(([s, l]) => `<div class="row" data-a="preset" data-section="${s}" data-label="${l}">
-      <div class="ic">${ic(s === "Wi-Fi" ? "wifi" : s === "Carro" ? "car" : s === "Contatos" ? "phone" : l === "CEP" ? "map-pin" : "house")}</div>
-      <div class="main"><div class="t">${l}</div></div><span class="muted">${ic("plus")}</span></div>`).join("")}</div>`}
+    </div>`).join("")}</div>`))) : `
+    <div class="list">${presets.map(([s, l, icn]) => `<div class="row" data-a="preset" data-section="${s}" data-label="${l}" data-icon="${icn}">
+      <div class="ic">${ic(icn)}</div><div class="main"><div class="t">${l}</div></div><span class="muted">${ic("plus")}</span></div>`).join("")}</div>
+    <p class="hint">Toque numa informação depois pra copiar.</p>`}
   ${cta("Nova informação", "quick", "plus", "info")}`;
 };
-
 /* ---------- atalhos ---------- */
 routes.atalhos = async () => {
   const items = await db.list("links", (b) => b.order("section").order("title"), "links");
@@ -1451,162 +1548,155 @@ routes.atalhos = async () => {
   const sections = [...new Set(items.map((i) => i.section))];
   const host = (u) => { try { return new URL(u).host.replace(/^www\./, ""); } catch { return u; } };
   return `${topbar("Atalhos")}
-  ${items.length ? sections.map((sec) => `<div class="section-title">${esc(sec)}</div><div class="list">${items.filter((i) => i.section === sec).map((l) => `
+  ${items.length ? groups(sections.map((sec) => group(esc(sec), `<div class="list">${items.filter((i) => i.section === sec).map((l) => `
     <div class="row" data-a="open" data-url="${esc(l.url)}" role="link" style="cursor:pointer">
       <div class="ic acc" style="font-weight:700;font-size:15px">${esc(initials(l.title).slice(0, 1))}</div>
       <div class="main"><div class="t">${esc(l.title)}</div><div class="s">${esc(host(l.url))}</div></div>
       <button class="icon-btn" data-a="edit" data-id="${l.id}" aria-label="Editar">${ic("pencil")}</button>
       <span class="muted">${ic("arrow-up-right")}</span>
-    </div>`).join("")}</div>`).join("") : `<div class="list">${empty("Segunda via da luz, site do banco, gov.br, Detran, condomínio…")}</div>`}
+    </div>`).join("")}</div>`))) : `<div class="list">${emptyState("link", "Segunda via da luz, site do banco, gov.br, Detran, condomínio…")}</div>`}
   ${cta("Novo atalho", "quick", "plus", "atalhos")}`;
 };
 
-/* ---------- cofre de senhas (criptografia no aparelho) ---------- */
-const vault = { key: null, items: null, timer: null, hideTimer: null };
-const enc = new TextEncoder();
-const dec = new TextDecoder();
-const b64 = (buf) => { let s = ""; new Uint8Array(buf).forEach((b) => (s += String.fromCharCode(b))); return btoa(s); };
-const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
-async function deriveKey(pass, salt) {
-  const base = await crypto.subtle.importKey("raw", enc.encode(pass), "PBKDF2", false, ["deriveKey"]);
-  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 310000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+/* ---------- senhas (simples: protegido pelo login; trava opcional por PIN ou digital neste aparelho) ---------- */
+const lock = { open: false, hideTimer: null };
+const LOCK_KEY = "bunny:lock";
+const getLock = () => { try { return JSON.parse(localStorage.getItem(LOCK_KEY) || "{}"); } catch { return {}; } };
+const setLock = (v) => { try { localStorage.setItem(LOCK_KEY, JSON.stringify(v)); } catch {} };
+const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64u = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
+async function sha(text) { const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)); return b64u(h); }
+async function bioAvailable() { try { return !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch { return false; } }
+async function bioRegister() {
+  const cred = await navigator.credentials.create({ publicKey: {
+    challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { name: "Bunny" },
+    user: { id: crypto.getRandomValues(new Uint8Array(16)), name: state.user.email, displayName: state.member.display_name },
+    pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+    authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "discouraged" }, timeout: 60000,
+  } });
+  return b64u(cred.rawId);
 }
-async function seal(key, obj) {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(JSON.stringify(obj)));
-  return { iv: b64(iv), ct: b64(ct) };
+async function bioCheck(id) {
+  await navigator.credentials.get({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), allowCredentials: [{ type: "public-key", id: unb64u(id) }], userVerification: "required", timeout: 60000 } });
+  return true;
 }
-async function unseal(key, iv, ct) {
-  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(iv) }, key, unb64(ct));
-  return JSON.parse(dec.decode(pt));
-}
-function genPassword(len = 16) {
-  const chars = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*?-_";
-  const out = [];
-  const buf = new Uint8Array(1);
-  while (out.length < len) {
-    crypto.getRandomValues(buf);
-    if (buf[0] < Math.floor(256 / chars.length) * chars.length) out.push(chars[buf[0] % chars.length]);
-  }
-  return out.join("");
-}
-function lockVault() {
-  vault.key = null;
-  vault.items = null;
-  clearTimeout(vault.timer);
-  if (routeParts().name === "cofre") render();
-}
-function touchVault() {
-  if (!vault.key) return;
-  clearTimeout(vault.timer);
-  vault.timer = setTimeout(lockVault, 5 * 60 * 1000);
-}
-document.addEventListener("pointerdown", touchVault);
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) vault.hideTimer = setTimeout(lockVault, 60 * 1000);
-  else clearTimeout(vault.hideTimer);
+  if (document.hidden) lock.hideTimer = setTimeout(() => { lock.open = false; if (routeParts().name === "cofre") render(); }, 60 * 1000);
+  else clearTimeout(lock.hideTimer);
 });
+function pinPad(title) {
+  return new Promise((resolve) => {
+    let val = "";
+    openSheet(`<h2 class="center">${esc(title)}</h2><div class="pin-dots">${"<i></i>".repeat(4)}</div>
+      <div class="pinpad">${[1, 2, 3, 4, 5, 6, 7, 8, 9, "", 0, "⌫"].map((k) => k === "" ? "<span></span>" : `<button type="button" data-k="${k}">${k === "⌫" ? ic("delete") : k}</button>`).join("")}</div>`,
+    (sheet, close) => {
+      const dots = () => sheet.querySelectorAll(".pin-dots i").forEach((d, i) => d.classList.toggle("on", i < val.length));
+      const onKey = (k) => {
+        if (k === "⌫") val = val.slice(0, -1); else if (/^\d$/.test(k) && val.length < 4) val += k;
+        dots();
+        if (val.length === 4) setTimeout(() => { close(val); }, 120);
+      };
+      sheet.addEventListener("click", (e) => { const b = e.target.closest("[data-k]"); if (b) onKey(b.dataset.k); });
+      const kb = (e) => { if (/^\d$/.test(e.key)) onKey(e.key); if (e.key === "Backspace") onKey("⌫"); };
+      document.addEventListener("keydown", kb);
+      const obs = new MutationObserver(() => { if (!document.body.contains(sheet)) { document.removeEventListener("keydown", kb); obs.disconnect(); } });
+      obs.observe(document.body, { childList: true });
+    }).then((v) => resolve(typeof v === "string" ? v : null));
+  });
+}
+async function unlockFlow() {
+  const L = getLock();
+  if (!L.mode) { lock.open = true; return true; }
+  if (L.mode === "bio") {
+    try { await bioCheck(L.cred); lock.open = true; return true; }
+    catch { toast("Não foi possível confirmar a digital"); }
+    if (!L.pin) return false;
+  }
+  const pin = await pinPad("Digite o PIN");
+  if (pin && (await sha(pin + state.user.id)) === L.pin) { lock.open = true; return true; }
+  if (pin) toast("PIN errado");
+  return false;
+}
+async function lockSettings() {
+  const L = getLock();
+  const bio = await bioAvailable();
+  openSheet(`<h2>Proteção neste aparelho</h2>
+    <p class="muted" style="margin:-6px 4px 14px;font-size:14px">Opcional. As senhas já ficam protegidas pelo login de vocês.</p>
+    <div class="list">
+      <button class="row" data-m="none"><span class="ic">${ic("lock-open")}</span><div class="main"><div class="t">Sem trava</div></div>${!L.mode ? ic("check") : ""}</button>
+      <button class="row" data-m="pin"><span class="ic">${ic("lock-keyhole")}</span><div class="main"><div class="t">PIN de 4 números</div></div>${L.mode === "pin" ? ic("check") : ""}</button>
+      ${bio ? `<button class="row" data-m="bio"><span class="ic">${ic("fingerprint")}</span><div class="main"><div class="t">Digital / rosto / Windows Hello</div><div class="s">Usa o desbloqueio do próprio aparelho</div></div>${L.mode === "bio" ? ic("check") : ""}</button>` : ""}
+    </div>`, (sheet, close) => sheet.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-m]");
+    if (!b) return;
+    const mode = b.dataset.m;
+    close();
+    if (mode === "none") { setLock({}); toast("Trava desligada"); }
+    if (mode === "pin") {
+      const p1 = await pinPad("Escolha um PIN");
+      if (!p1) return;
+      const p2 = await pinPad("Repita o PIN");
+      if (p1 !== p2) return toast("Os PINs não batem");
+      setLock({ mode: "pin", pin: await sha(p1 + state.user.id) }); toast("PIN ativado");
+    }
+    if (mode === "bio") {
+      try {
+        const cred = await bioRegister();
+        const p = await pinPad("PIN reserva (se a digital falhar)");
+        setLock({ mode: "bio", cred, pin: p ? await sha(p + state.user.id) : null }); toast("Digital ativada");
+      } catch { toast("Não deu pra ativar a digital aqui"); }
+    }
+    lock.open = true; refresh();
+  }));
+}
 
 routes.cofre = async () => {
-  if (!window.crypto?.subtle) return `${topbar("Senhas")}<div class="list">${empty("O cofre precisa do app aberto em https.")}</div>`;
-  const meta = (await q(sb.from("vault_meta").select("*").maybeSingle()));
-
-  if (!meta) {
-    handlers.create = async (f) => {
-      const p1 = f.p1.value, p2 = f.p2.value;
-      if (p1.length < 8) return toast("Use pelo menos 8 caracteres");
-      if (p1 !== p2) return toast("As senhas não batem");
-      const salt = crypto.getRandomValues(new Uint8Array(16));
-      const key = await deriveKey(p1, salt);
-      const check = await seal(key, { ok: "casa" });
-      await q(sb.from("vault_meta").insert({ salt: b64(salt), check_iv: check.iv, check_ct: check.ct }));
-      vault.key = key; vault.items = null; touchVault();
-      toast("Cofre criado");
-      refresh();
-    };
+  const L = getLock();
+  handlers.lockcfg = () => lockSettings();
+  if (L.mode && !lock.open) {
+    handlers.unlock = async () => { if (await unlockFlow()) refresh(); };
+    setTimeout(() => handlers.unlock(), 150);
     return `${topbar("Senhas")}
-    <div class="card wide" style="margin-bottom:14px">
-      <div style="font-size:26px;color:var(--accent-text)">${ic("shield-check")}</div>
-      <div style="font-weight:600;margin:10px 0 4px">Crie a senha mestra do cofre</div>
-      <div class="muted" style="font-size:13.5px;line-height:1.45">Só vocês dois conseguem abrir. <b style="color:var(--warn);font-weight:500">Se esquecerem a senha mestra, não dá pra recuperar.</b></div>
-    </div>
-    <form data-submit="create" class="card" style="margin-top:8px" novalidate>
-      <label class="field"><span>Senha mestra</span><input id="p1" name="p1" type="password" autocomplete="new-password"></label>
-      <label class="field"><span>Repita</span><input id="p2" name="p2" type="password" autocomplete="new-password"></label>
-      <button class="btn" type="submit" style="margin-top:6px">Criar cofre</button>
-    </form>`;
+      <div class="card center" style="padding:34px 18px">
+        <div style="font-size:34px;margin-bottom:10px">${ic(L.mode === "bio" ? "fingerprint" : "lock-keyhole")}</div>
+        <div style="font-weight:500;margin-bottom:14px">Senhas trancadas neste aparelho</div>
+        <button class="btn" data-a="unlock" style="max-width:240px">Destrancar</button>
+      </div>`;
   }
-
-  if (!vault.key) {
-    handlers.unlock = async (f) => {
-      const btn = f.querySelector("button");
-      btn.disabled = true; btn.textContent = "Abrindo…";
-      try {
-        const key = await deriveKey(f.master.value, unb64(meta.salt));
-        await unseal(key, meta.check_iv, meta.check_ct);
-        vault.key = key; touchVault(); refresh();
-      } catch { toast("Senha mestra errada"); btn.disabled = false; btn.textContent = "Destrancar"; }
-    };
-    return `${topbar("Senhas")}
-    <section class="auth" style="min-height:60dvh">
-      <div class="logo">${ic("lock")}</div>
-      <h1 style="font-size:26px">Cofre trancado</h1>
-      <p>Tranca sozinho depois de 5 minutos parado.</p>
-      <form data-submit="unlock" novalidate>
-        <label class="field"><span>Senha mestra</span><input id="master" name="master" type="password" autocomplete="current-password" autofocus></label>
-        <button class="btn" type="submit">Destrancar</button>
-      </form>
-    </section>`;
-  }
-
-  if (!vault.items) {
-    const rows = await q(sb.from("vault_items").select("*"));
-    vault.items = (await Promise.all(rows.map(async (r) => {
-      try { return { id: r.id, ...(await unseal(vault.key, r.iv, r.ct)) }; } catch { return null; }
-    }))).filter(Boolean).sort((a, b) => a.title.localeCompare(b.title));
-  }
-  const items = vault.items;
+  const items = await db.list("secrets", (b) => b.order("title"), "secrets");
   const fields = [
-    { name: "title", label: "Nome", required: true, placeholder: "Ex: Netflix, Prefeitura" },
+    { name: "icon", type: "iconpick", label: "Ícone", value: "key-round" },
+    { name: "title", label: "Nome", required: true, placeholder: "Ex: Netflix, Wi-Fi, Prefeitura" },
+    { name: "username", label: "Usuário / e-mail (opcional)" },
+    { name: "secret", type: "secret", label: "Senha (opcional)", generate: true },
     { name: "url", type: "url", label: "Site (opcional)", placeholder: "https://" },
-    { name: "user", label: "Usuário / e-mail" },
-    { name: "pass", type: "secret", label: "Senha", generate: true },
-    { name: "notes", type: "textarea", label: "Notas (opcional)" },
+    { name: "notes", type: "textarea", label: "Anotações (opcional)", placeholder: "Ex: PIN do cartão do mercado, resposta secreta…" },
   ];
   const save = (it = {}) => form({
-    title: it.id ? "Editar senha" : "Nova senha",
-    values: it, fields,
-    onSubmit: async (v) => {
-      v.url = normUrl(v.url);
-      const sealed = await seal(vault.key, v);
-      if (it.id) await db.set("vault_items", it.id, { ...sealed, updated_at: new Date().toISOString() });
-      else await db.add("vault_items", sealed);
-      vault.items = null;
-    },
-    onDelete: it.id ? async () => { await db.del("vault_items", it.id); vault.items = null; } : null,
+    title: it.id ? "Editar" : "Nova senha ou anotação", values: it, fields,
+    onSubmit: (v) => { v.url = normUrl(v.url); v.updated_at = new Date().toISOString(); return it.id ? db.set("secrets", it.id, v) : db.add("secrets", v); },
+    onDelete: it.id ? () => db.del("secrets", it.id) : null,
   });
   handlers.add = () => save();
-  handlers.lock = () => lockVault();
   handlers.show = (d) => {
     const it = items.find((x) => x.id === d.id);
     openSheet(`<h2>${esc(it.title)}</h2>
       <div class="list">
-        ${it.user ? `<div class="row"><div class="main"><div class="s">Usuário</div><div class="t">${esc(it.user)}</div></div><button class="icon-btn" data-c="user">${ic("copy")}</button></div>` : ""}
-        ${it.pass ? `<div class="row"><div class="main"><div class="s">Senha</div><div class="t secret" data-p>••••••••••</div></div><button class="icon-btn" data-eye>${ic("eye")}</button><button class="icon-btn" data-c="pass">${ic("copy")}</button></div>` : ""}
-        ${it.url ? `<div class="row"><div class="main"><div class="s">Site</div><div class="t">${esc(it.url)}</div></div><button class="icon-btn" data-go>${ic("external-link")}</button></div>` : ""}
-        ${it.notes ? `<div class="row"><div class="main"><div class="s">Notas</div><div class="t" style="white-space:pre-wrap">${esc(it.notes)}</div></div></div>` : ""}
+        ${it.username ? `<div class="row"><div class="main"><div class="s">Usuário</div><div class="t">${esc(it.username)}</div></div><button class="icon-btn" data-c="username" aria-label="Copiar">${ic("copy")}</button></div>` : ""}
+        ${it.secret ? `<div class="row"><div class="main"><div class="s">Senha</div><div class="t secret" data-p>••••••••</div></div><button class="icon-btn" data-eye aria-label="Mostrar">${ic("eye")}</button><button class="icon-btn" data-c="secret" aria-label="Copiar">${ic("copy")}</button></div>` : ""}
+        ${it.url ? `<div class="row"><div class="main"><div class="s">Site</div><div class="t">${esc(it.url)}</div></div><button class="icon-btn" data-go aria-label="Abrir">${ic("external-link")}</button></div>` : ""}
+        ${it.notes ? `<div class="row"><div class="main"><div class="s">Anotações</div><div class="t" style="white-space:pre-wrap">${esc(it.notes)}</div></div></div>` : ""}
       </div>
       <div class="actions"><button class="btn ghost" data-edit>Editar</button></div>`,
     (sheet, close) => sheet.addEventListener("click", (e) => {
       const b = e.target.closest("button");
       if (!b) return;
-      if (b.dataset.c) copy(it[b.dataset.c], b.dataset.c === "pass" ? "Senha copiada" : "Copiado");
-      if ("eye" in b.dataset) { const p = sheet.querySelector("[data-p]"); p.textContent = p.textContent.startsWith("•") ? it.pass : "••••••••••"; }
+      if (b.dataset.c) copy(it[b.dataset.c], b.dataset.c === "secret" ? "Senha copiada" : "Copiado");
+      if ("eye" in b.dataset) { const p = sheet.querySelector("[data-p]"); p.textContent = p.textContent.startsWith("•") ? it.secret : "••••••••"; }
       if ("go" in b.dataset) window.open(it.url, "_blank", "noopener");
       if ("edit" in b.dataset) { close(); save(it); }
     }));
   };
-  handlers.search = () => {};
   setTimeout(() => {
     const s = document.getElementById("vsearch");
     s?.addEventListener("input", () => {
@@ -1614,16 +1704,55 @@ routes.cofre = async () => {
       document.querySelectorAll("[data-vrow]").forEach((r) => (r.style.display = r.dataset.vrow.includes(term) ? "" : "none"));
     });
   });
-  return `${topbar("Senhas", `<button class="round" data-a="lock" aria-label="Trancar">${ic("lock-open")}</button>`)}
-  ${items.length > 5 ? `<input id="vsearch" class="input" placeholder="Buscar…" style="margin-bottom:12px" autocomplete="off">` : ""}
-  <div class="list">${items.length ? items.map((it) => `<div class="row" data-a="show" data-id="${it.id}" data-vrow="${esc((it.title + " " + (it.user || "")).toLowerCase())}">
-    <div class="ic acc" style="font-weight:600">${esc(initials(it.title).slice(0, 1))}</div>
-    <div class="main"><div class="t">${esc(it.title)}</div><div class="s">${esc(it.user || "")}</div></div>
+  return `${topbar("Senhas", `<button class="round" data-a="lockcfg" aria-label="Proteção">${ic(L.mode ? "lock-keyhole" : "lock-open")}</button>`)}
+  ${items.length > 6 ? `<input id="vsearch" class="input search" placeholder="Buscar…" autocomplete="off">` : ""}
+  <div class="list">${items.length ? items.map((it) => `<div class="row" data-a="show" data-id="${it.id}" data-vrow="${esc((it.title + " " + (it.username || "")).toLowerCase())}">
+    <div class="ic">${ic(it.icon || "key-round")}</div>
+    <div class="main"><div class="t">${esc(it.title)}</div>${it.username ? `<div class="s">${esc(it.username)}</div>` : ""}</div>
     <span class="muted">${ic("chevron-right")}</span>
-  </div>`).join("") : empty("Nenhuma senha guardada ainda.")}</div>
-  <p class="muted center" style="font-size:12px;margin-top:14px">${ic("shield-check")} Criptografado com AES-256 no seu celular</p>
+  </div>`).join("") : emptyState("key-round", "Guarde aqui senhas e coisas que vocês não podem esquecer.")}</div>
   ${cta("Nova senha", "add")}`;
 };
+
+/* ---------- notificações (Web Push) ---------- */
+const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const isIOSDevice = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+function vapidKey() {
+  const s = CONFIG.vapid.replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(s + "===".slice((s.length + 3) % 4));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+async function pushState() {
+  if (!pushSupported()) return "unsupported";
+  if (Notification.permission === "denied") return "denied";
+  const reg = await navigator.serviceWorker.getRegistration("/");
+  const sub = await reg?.pushManager.getSubscription();
+  return sub && Notification.permission === "granted" ? "on" : "off";
+}
+async function enablePush() {
+  if (!pushSupported()) return toast(isIOSDevice() && !isStandalone() ? "No iPhone, instale o app na tela inicial primeiro" : "Este navegador não tem notificações");
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") return toast("Notificações bloqueadas no navegador");
+  const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  await navigator.serviceWorker.ready;
+  const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() }));
+  const j = sub.toJSON();
+  await q(sb.from("push_subscriptions").upsert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, device: navigator.userAgent.slice(0, 160) }, { onConflict: "endpoint" }));
+  toast("Notificações ligadas neste aparelho");
+  testPush();
+}
+async function disablePush() {
+  const reg = await navigator.serviceWorker.getRegistration("/");
+  const sub = await reg?.pushManager.getSubscription();
+  if (sub) { await sb.from("push_subscriptions").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); }
+  toast("Notificações desligadas neste aparelho");
+}
+async function testPush() {
+  const { data, error } = await sb.functions.invoke("lembretes", { body: { action: "test" } });
+  if (error) return toast("Não consegui mandar o teste");
+  if (!data?.sent) toast("Nenhum aparelho com notificação ligada");
+}
 
 /* ---------- ajustes ---------- */
 const ACCENTS = [["#2f55e6", "Azul"], ["#3a86e8", "Céu"], ["#5b6cf0", "Índigo"], ["#8b6fe0", "Lavanda"], ["#e0679c", "Rosa"], ["#ec7a5c", "Coral"], ["#d99a2b", "Âmbar"], ["#2f9e6e", "Verde"], ["#59636f", "Grafite"]];
@@ -1650,7 +1779,12 @@ routes.ajustes = async (tab = "geral") => {
   };
   handlers.cat = (d) => forms.category(catById(d.id));
   handlers.newcat = () => forms.category();
-  handlers.logout = async () => { vault.key = null; await sb.auth.signOut(); };
+  handlers.logout = async () => { lock.open = false; await sb.auth.signOut(); };
+  handlers.pushOn = async () => { await enablePush(); refresh(); };
+  handlers.pushOff = async () => { await disablePush(); refresh(); };
+  handlers.pushTest = () => testPush();
+  handlers.lockcfg = () => lockSettings();
+  const ps = await pushState();
   handlers.theme = (d) => { PREFS.save({ theme: d.v }); refresh(); };
   handlers.accent = (d) => { PREFS.save({ accent: d.v }); refresh(); };
   handlers.bg = (d) => { PREFS.save({ bg: d.v }); refresh(); };
@@ -1699,7 +1833,7 @@ routes.ajustes = async (tab = "geral") => {
     <div class="section-title">Cartões</div>
     ${seg("hero", [["white", "Branco"], ["glass", "Vidro"]], P.hero === "glass" ? "glass" : "white")}
     <div class="section-title">Logo</div>
-    ${seg("logo", [["white", "Branco"], ["accent", "Cor"], ["ink", "Preto"]], P.logo || "white")}
+    ${seg("logo", [["white", "Automático"], ["accent", "Cor do tema"], ["ink", "Preto"]], P.logo || "white")}
     <div class="section-title">Mais</div>
     <div class="list">
       ${sw("private", "Esconder valores", P.private)}
@@ -1729,6 +1863,13 @@ routes.ajustes = async (tab = "geral") => {
       <div class="muted" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em">Código pra entrar na casa</div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px"><span class="code">${esc(h.invite_code)}</span><span class="round" style="background:var(--surface-2)">${ic("share-2")}</span></div>
     </div>
+    <div class="card">
+      <div class="person"><span class="pic">${ic(ps === "on" ? "bell-ring" : "bell")}</span>
+        <div class="main"><div class="t">Notificações de vencimento</div>
+        <div class="s" style="white-space:normal">${ps === "on" ? "Ligadas neste aparelho. Aviso todo dia às 8h: o que vence hoje e amanhã." : ps === "denied" ? "Bloqueadas no navegador. Libere nas configurações do site." : ps === "unsupported" ? (isIOSDevice() ? "No iPhone, instale o app na tela inicial e abra por ele." : "Este navegador não tem notificações.") : "Contas fixas, lembretes e tarefas do dia, no celular ou no PC."}</div></div></div>
+      ${ps === "on" ? `<div class="btn-row"><button class="btn ghost" data-a="pushTest">Mandar teste</button><button class="btn ghost" data-a="pushOff">Desligar</button></div>` : ps === "off" ? `<div class="btn-row"><button class="btn" data-a="pushOn">${ic("bell")} Ativar neste aparelho</button></div>` : ""}
+    </div>
+    <div class="card" data-a="lockcfg" style="cursor:pointer"><div class="person"><span class="pic">${ic("fingerprint")}</span><div class="main"><div class="t">Trava das senhas</div><div class="s">${getLock().mode === "bio" ? "Digital / rosto" : getLock().mode === "pin" ? "PIN" : "Sem trava neste aparelho"}</div></div><span class="muted">${ic("chevron-right")}</span></div></div>
     ${standalone ? "" : `<div class="card" data-a="install"><div class="person"><span class="pic">${ic("download")}</span><div class="main"><div class="t">Instalar o app</div><div class="s" style="white-space:normal">${isIOS ? "Safari › Compartilhar › Adicionar à Tela de Início" : installEvt ? "Toque pra instalar" : "Menu do navegador › Instalar app"}</div></div>${installEvt ? `<span class="small-chip on">Instalar</span>` : ""}</div></div>`}
     <div style="margin-top:16px"><button class="btn ghost" data-a="logout">${ic("log-out")} Sair</button></div>`;
   }
@@ -1747,7 +1888,7 @@ async function onSession(session) {
   if (state.user) {
     try { await loadHouse(); } catch (e) { console.error(e); }
   } else {
-    vault.key = null;
+    lock.open = false;
   }
   render();
 }

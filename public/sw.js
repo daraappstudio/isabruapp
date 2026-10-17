@@ -1,4 +1,4 @@
-const CACHE = "bunny-v7";
+const CACHE = "bunny-v9";
 const SHELL = [
   "/", "/index.html", "/prefs.js", "/manifest.json",
   "/app/", "/app/index.html", "/app/style.css", "/app/app.js", "/app/config.js",
@@ -24,4 +24,25 @@ self.addEventListener("fetch", (e) => {
       return res;
     }).catch(() => caches.match(e.request).then((r) => r || caches.match(url.pathname.startsWith("/app") ? "/app/index.html" : "/index.html")))
   );
+});
+
+// Notificações de vencimento
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { title: "Bunny", body: e.data ? e.data.text() : "" }; }
+  e.waitUntil(self.registration.showNotification(d.title || "Bunny", {
+    body: d.body || "",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/badge-96.png",
+    tag: d.key || undefined,
+    data: { url: d.url || "/app/" },
+  }));
+});
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = e.notification.data?.url || "/app/";
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+    for (const c of list) if (c.url.includes("/app/")) { c.focus(); return c.navigate(url).catch(() => {}); }
+    return self.clients.openWindow(url);
+  }));
 });
