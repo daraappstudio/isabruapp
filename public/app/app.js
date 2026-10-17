@@ -1111,9 +1111,9 @@ routes.financas = async (tab = "extrato") => {
   ${moneyTabs("financas")}
   <div class="layout">
     <aside class="lcol">
-      <div class="days">${[-4, -3, -2, -1, 0, 1].map((k) => {
-        const mm = new Date(m.getFullYear(), m.getMonth() + k, 1);
-        return `<button class="day ${k === 0 ? "on" : ""}" data-a="setm" data-v="${iso(mm)}"><b>${monthName(mm, { month: "short" }).replace(".", "").replace(/^./, (c) => c.toUpperCase())}</b><small>${mm.getFullYear()}</small></button>`;
+      <div class="days">${(() => { const n = monthStart(new Date()); const a = Math.min(-24, (m.getFullYear() - n.getFullYear()) * 12 + m.getMonth() - n.getMonth()); const z = Math.max(12, (m.getFullYear() - n.getFullYear()) * 12 + m.getMonth() - n.getMonth()); return Array.from({ length: z - a + 1 }, (_, i) => a + i); })().map((k) => {
+        const n0 = monthStart(new Date()); const mm = new Date(n0.getFullYear(), n0.getMonth() + k, 1);
+        return `<button class="day ${mm.getTime() === m.getTime() ? "on" : ""}" data-a="setm" data-v="${iso(mm)}"><b>${monthName(mm, { month: "short" }).replace(".", "").replace(/^./, (c) => c.toUpperCase())}</b><small>${mm.getFullYear()}</small></button>`;
       }).join("")}</div>
       <div class="sheet-card">
         <div class="sec"><div class="lbl">Saldo de ${monthName(m)}</div><div class="big">${brl0(s.balance)}</div></div>
@@ -1565,7 +1565,7 @@ routes.tarefas = async (filter = "todas") => {
   };
   handlers.qchore = async (f) => {
     const title = f.qtitle.value.trim();
-    if (!title) return;
+    if (!title) return globalActions.quick({ m: "tarefas" });
     await db.add("chores", { title, due: f.qwhen.value === "hoje" ? iso(today0()) : f.qwhen.value === "amanha" ? iso(addDays(today0(), 1)) : null, assignee: filter === "minhas" ? state.user.id : null });
     refresh();
   };
@@ -1623,7 +1623,7 @@ routes.tarefas = async (filter = "todas") => {
       ${list.length ? list.map(card).join("") : `<div class="kempty">${k === "hoje" ? "Nada pra hoje ✨" : "Vazio"}</div>`}
     </div>`;
   }).join("")}</div>
-  ${cta("Nova tarefa", "quick", "plus", "tarefas")}`;
+`;
 };
 /* ---------- lembretes ---------- */
 routes.lembretes = async (tab = "todos") => {
@@ -1686,9 +1686,7 @@ routes.desejos = async (tab = "quero") => {
   handlers.edit = (d) => forms.wish(items.find((x) => x.id === d.id));
   handlers.done = async (d) => { const w = items.find((x) => x.id === d.id); await db.set("wishes", w.id, { done: !w.done }); refresh(); };
   const list = items.filter((w) => (tab === "comprados" ? w.done : !w.done));
-  const total = sum(items.filter((w) => !w.done), (w) => w.price);
   return `${topbar("Desejos")}
-  <div class="hero-lite"><div class="label">Tudo que está na lista</div><div class="big">${brl(total)}</div><div class="note">${items.filter((w) => !w.done).length} desejos</div></div>
   ${chips([["quero", "Quero"], ["comprados", "Já comprei"]], tab)}
   <div class="list">${list.length ? list.map((w) => `<div class="row ${w.done ? "done" : ""}" data-a="edit" data-id="${w.id}">
     <button class="check ${w.done ? "on" : ""}" data-a="done" data-id="${w.id}" aria-label="Comprado">${ic("check")}</button>
@@ -1707,8 +1705,6 @@ routes.juntos = async (tab = "todos") => {
   const list = items.filter((b) => tab === "todos" || b.kind === tab).sort((a, b) => a.done - b.done);
   const doneCount = items.filter((b) => b.done).length;
   return `${topbar("Pra fazer juntos")}
-  <div class="hero-lite"><div class="label">Já fizemos</div><div class="big">${doneCount} <span style="font-size:18px" class="muted">de ${items.length}</span></div>
-  ${items.length ? `<div class="bar"><i style="width:${(doneCount / items.length) * 100}%"></i></div>` : ""}</div>
   ${chips([["todos", "Todos"], ...Object.entries(BUCKET_KINDS).map(([k, v]) => [k, v.l])], tab)}
   <div class="list">${list.length ? list.map((b) => `<div class="row ${b.done ? "done" : ""}" data-a="edit" data-id="${b.id}">
     <button class="check ${b.done ? "on" : ""}" data-a="done" data-id="${b.id}" aria-label="Feito">${ic("check")}</button>
@@ -2122,7 +2118,8 @@ routes["novo-gasto"] = async () => { setTimeout(() => { history.replaceState(nul
     el.classList.toggle("hs-r", el.scrollLeft < max - 2);
   };
   let raf = 0;
-  const all = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => document.querySelectorAll(SEL).forEach(fade)); };
+  const center = (el) => { const on = el.querySelector(".on"); if (!on || el.dataset.hc === on.dataset.v + (on.dataset.to || "")) return; el.dataset.hc = on.dataset.v + (on.dataset.to || ""); el.style.scrollBehavior = "auto"; el.scrollLeft += on.getBoundingClientRect().left - el.getBoundingClientRect().left - (el.clientWidth - on.offsetWidth) / 2; el.style.scrollBehavior = ""; };
+  const all = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => document.querySelectorAll(SEL).forEach((el) => { center(el); fade(el); })); };
   new MutationObserver(all).observe(document.body, { childList: true, subtree: true });
   addEventListener("resize", all);
   document.addEventListener("scroll", (e) => { if (e.target.matches && e.target.matches(SEL)) fade(e.target); }, true);

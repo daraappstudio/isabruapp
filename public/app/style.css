@@ -669,3 +669,7 @@ i.k2 { background: color-mix(in oklab, var(--fg) 25%, transparent); }
 .hs-r { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
 .hs-l.hs-r { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 calc(100% - 28px), transparent); }
 @media (hover: hover) { .hs-on { cursor: grab; } .hs-drag { cursor: grabbing; scroll-behavior: auto; user-select: none; } .hs-drag * { pointer-events: none; } }
+@media (min-width: 980px) {
+  .lcol .days { flex-wrap: nowrap; overflow-x: auto; margin: 0 0 12px; padding: 0; }
+  .lcol .day, .lcol .day.on { width: calc((100% - 16px) / 3); flex: 0 0 calc((100% - 16px) / 3); height: 64px; }
+}
